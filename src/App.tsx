@@ -7,6 +7,8 @@ import type { SkillDescriptor } from "./types/skill";
 import DynamicForm, { type DynamicFormResult } from "./components/DynamicForm";
 import ArtifactPreview from "./components/ArtifactPreview";
 import Settings from "./components/Settings";
+import ChartEditor from "./components/ChartEditor";
+import type { PlotSpec, PlotData } from "./types/plot";
 import "./App.css";
 
 interface LogLine {
@@ -32,8 +34,34 @@ const CHART_ATLAS: { file: string; label: string }[] = [
   { file: "atlas-07-forest-interval.png", label: "forest 森林" },
   { file: "atlas-08-area-stacked.png", label: "area 堆叠" },
   { file: "atlas-09-image-plates.png", label: "image 图板" },
-  { file: "atlas-10-network-matrix.png", label: "network 网络" },
+ { file: "atlas-10-network-matrix.png", label: "network 网络" },
 ];
+
+// 图表微调编辑器的演示数据(阶段三后将替换为 codex 生成的真实 plot_spec/plot_data)。
+const DEMO_XS = Array.from({ length: 21 }, (_, i) => +(i * 0.5).toFixed(1));
+const DEMO_PLOT_SPEC: PlotSpec = {
+  chart_type: "line",
+  title: "Sample Data Visualization",
+  x_label: "Time",
+  y_label: "Amplitude",
+  x_unit: "s",
+  style: {
+    figure_size: [8, 5],
+    dpi: 150,
+    font_family: "serif",
+    font_size: 12,
+    grid: true,
+    grid_alpha: 0.3,
+    legend: { enabled: true, location: "best" },
+    spines: { enabled: true, width: 1.2, color: "#333" },
+  },
+};
+const DEMO_PLOT_DATA: PlotData = {
+  series: [
+    { name: "sin", x: DEMO_XS, y: DEMO_XS.map((x) => +Math.sin(x).toFixed(4)), color: "#1a1a1a", line_width: 2.0, visible: true },
+    { name: "cos", x: DEMO_XS, y: DEMO_XS.map((x) => +Math.cos(x).toFixed(4)), color: "#c73e3a", line_width: 1.5, visible: true },
+  ],
+};
 
 function ChartAtlas({
   skillDir,
@@ -189,8 +217,25 @@ function RunView({
   const gotResultRef = useRef(false);
 
   const isFigure = skill.id === "nature-figure";
+  const [showEditor, setShowEditor] = useState(false);
+  const [loadedSpec, setLoadedSpec] = useState<PlotSpec | null>(null);
+  const [loadedData, setLoadedData] = useState<PlotData | null>(null);
   // 最近一次生成的绘图脚本(用于"再改一版"回灌)
   const lastPy = [...artifacts].reverse().find((p) => p.endsWith(".py")) || null;
+
+  // 任务完成后,检测 codex 是否导出了 plot_spec/plot_data,有则用于图表微调
+  async function tryLoadPlotParams() {
+    if (!workdir) return;
+    try {
+      const specStr = await readTextFile(`${workdir}/plot_spec.json`);
+      const dataStr = await readTextFile(`${workdir}/plot_data.json`);
+      setLoadedSpec(JSON.parse(specStr));
+      setLoadedData(JSON.parse(dataStr));
+      push("已加载绘图参数,可点击「图表微调」实时调整", "ok");
+    } catch {
+      // 参数文件不存在(旧版产物或 mock 模式),保留演示数据
+    }
+  }
 
   function push(text: string, cls?: string) {
     setLog((prev) => [...prev, { t: new Date().toLocaleTimeString(), text, cls }]);
@@ -289,6 +334,7 @@ function RunView({
             );
           }
           setRunning(false);
+          if (ev.outcome === "success") tryLoadPlotParams();
           break;
       }
     };
@@ -345,6 +391,13 @@ function RunView({
   }
 
   return (
+    showEditor ? (
+      <ChartEditor
+        initialSpec={loadedSpec ?? DEMO_PLOT_SPEC}
+        initialData={loadedData ?? DEMO_PLOT_DATA}
+        onBack={() => setShowEditor(false)}
+      />
+    ) : (
     <section className="runview">
       <div className="run-head">
         <button className="link" onClick={onBack}>← 返回目录</button>
@@ -369,6 +422,13 @@ function RunView({
         <DynamicForm skill={skill} files={files} onChange={setForm} />
 
         {isFigure && <ChartAtlas skillDir={skill.dir} selected={chartHint} onSelect={setChartHint} />}
+        {isFigure && (
+          <div className="ce-entry">
+            <button className="ce-launch" onClick={() => setShowEditor(true)}>⚙ 图表微调</button>
+            <span className="ce-entry-hint">{loadedSpec ? "已加载生成参数,可实时微调" : "参数化编辑器:实时调整配色 / 字号 / 线宽,本地渲染无需重跑"}</span>
+          </div>
+        )}
+
 
         <div className="row">
           <label>
@@ -419,5 +479,6 @@ function RunView({
         </div>
       </section>
     </section>
+    )
   );
 }

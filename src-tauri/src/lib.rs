@@ -1,6 +1,7 @@
 mod acsearch;
 mod engine;
 mod pyenv;
+mod renderer;
 mod skills;
 
 use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
@@ -213,7 +214,8 @@ pub fn run() {
             check_doctor,
             check_academic_search,
             register_academic_search,
-            get_setup_status
+            get_setup_status,
+            renderer::preview_plot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
