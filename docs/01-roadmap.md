@@ -1,8 +1,9 @@
 # nature-app 完整推进方案(逐项)
 
-> 状态:已批准(Approved 2026-06-20)· **M0 已完成并实测出图(2026-06-20)**
+> 状态:已批准(Approved 2026-06-20)· **M0 + M1 已完成并实测(2026-06-20,macOS)**
 > 配套文档:`00-feasibility-and-direction.md`(整体方向);`01-codex-spikes-results.md`(Codex 实测结论 + M0 集成发现,**已生成**——含对本方案的修正)
-> M0 成果:Tauri2+React 工程跑通 `选目录→codex exec→流式控制台→chart.png 出图显示`;8 个 Rust 单测 + 前端 build 全绿。已暴露并修复"沙箱内 matplotlib abort(环境地狱)"与"产物需快照兜底"两问题。
+> M0 成果:Tauri2+React 跑通 `选目录→codex exec→流式控制台→chart.png 出图`;8 单测+前端 build 绿。修复"沙箱内 matplotlib abort"与"产物需快照兜底"。
+> M1 成果:vendor pinned nature-skills(5d2ba1d)+ manifest 解析(13 单测)+ 11-skill 目录 + manifest 驱动 DynamicForm(三档)+ 安装到 ~/.codex/skills 调起 + 产物预览路由(markdown 结果/图片/文件)+ uv 隔离 Python(3.13)根治环境地狱。**实测**:polishing(文本→markdown 渲染)、figure(python→png+svg,经 uv 不再崩)端到端跑通。
 > 本方案所有技术细节均经对 nature-skills 仓库 / Codex CLI 官方文档 / Tauri 2.x 官方文档的实地调研;未确认事实一律列入 M0 验证 spike,绝不凭推测。
 
 ## Context
@@ -213,6 +214,8 @@ figure 再改一版=新 run,`parentRunId` 串版本树。全本地、零遥测�
 - [FE] `ArtifactPreviewRouter`:md/png/svg/pdf.js/csv/json/citation-list/open-external
 - [FE] 工作区/项目模型(project.json / runs/ 目录结构)
 - **Exit**:11 个 skill 都能以"表单+流式+产物"形态跑通(baseline);uv 环境自举在 mac+win 成功
+  - ✅ **macOS 已达成核心**(2026-06-20):11 skill 全部解析+目录展示(13 单测);DynamicForm 三档驱动;codex 原生调起;uv venv(3.13)就绪。**端到端 GUI 实测 2/11**——nature-polishing(文本→markdown 结果)与 nature-figure(python→png+svg,经 uv 不崩),代表"文本产出"与"图像+python 产出"两类;其余 9 个共用同一通用 runner,可后续快速逐一扫一遍补全
+  - ⏳ 待补:其余 9 skill 的逐一 GUI 冒烟;Windows;`item.updated`/`todo_list` 事件目前降级为 Raw(M2 可加进度渲染)
 
 ### M2 — figure 精修 + 环境体检
 - [FE] figure 精修视图(代码/图并排 + 再改一版回灌 + 版本树 + chart-atlas 选图 + PALETTE 约束)
