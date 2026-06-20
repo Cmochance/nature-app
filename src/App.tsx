@@ -160,7 +160,7 @@ function RunView({
 }) {
   const [workdir, setWorkdir] = useState("");
   const [files, setFiles] = useState<string[]>([]);
-  const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false });
+  const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false, userInput: "" });
   const [needsNetwork, setNeedsNetwork] = useState(true);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
@@ -169,6 +169,7 @@ function RunView({
   const [tokens, setTokens] = useState({ in: 0, out: 0 });
   const [chartHint, setChartHint] = useState<string | null>(null);
   const [refineInput, setRefineInput] = useState("");
+  const [originalInput, setOriginalInput] = useState("");
   const taskIdRef = useRef<string | null>(null);
 
   const isFigure = skill.id === "nature-figure";
@@ -266,6 +267,7 @@ function RunView({
 
   function run() {
     if (!form.valid) return;
+    setOriginalInput(form.userInput);
     const hint = isFigure && chartHint ? `\n参考图型(chart-atlas):${chartHint}` : "";
     launch(form.instruction + hint);
   }
@@ -365,7 +367,12 @@ function RunView({
           ))}
         </div>
         <div className="artifacts">
-          <ArtifactPreview result={result} artifacts={artifacts} />
+          <ArtifactPreview
+            result={result}
+            artifacts={artifacts}
+            skillId={skill.id}
+            original={originalInput}
+          />
         </div>
       </section>
     </section>

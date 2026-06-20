@@ -12,6 +12,7 @@ function disabledValue(skillId: string, axisName: string, value: string): string
 export interface DynamicFormResult {
   instruction: string;
   valid: boolean;
+  userInput: string;
 }
 
 interface Props {
@@ -60,8 +61,8 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
   }, [skill, sel, userInput, files]);
 
   useEffect(() => {
-    onChange({ instruction, valid });
-  }, [instruction, valid]);
+    onChange({ instruction, valid, userInput });
+  }, [instruction, valid, userInput]);
 
   function toggle(ax: Axis, value: string) {
     setSel((prev) => {

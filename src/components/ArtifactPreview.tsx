@@ -4,6 +4,8 @@ import remarkGfm from "remark-gfm";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { openPath } from "@tauri-apps/plugin-opener";
+import ReviewerView from "./ReviewerView";
+import ReaderBilingual from "./ReaderBilingual";
 
 const IMG = ["png", "svg", "jpg", "jpeg", "gif", "webp"];
 const TEXT = ["md", "txt", "json", "csv", "tsv", "bib", "ris", "enw", "nbib", "rdf", "log", "py", "tex"];
@@ -33,8 +35,16 @@ function TextArtifact({ path, isMd }: { path: string; isMd: boolean }) {
   );
 }
 
-function FileArtifact({ path }: { path: string }) {
+function FileArtifact({ path, skillId }: { path: string; skillId?: string }) {
   const e = ext(path);
+  // reader 的 paper.md → 双语对照视图(按真实 spec 解析)
+  if (skillId === "nature-reader" && base(path) === "paper.md") {
+    return (
+      <div className="art">
+        <ReaderBilingual path={path} />
+      </div>
+    );
+  }
   if (IMG.includes(e)) {
     return (
       <figure className="art">
@@ -56,25 +66,53 @@ function FileArtifact({ path }: { path: string }) {
 export default function ArtifactPreview({
   result,
   artifacts,
+  skillId,
+  original,
 }: {
   result: string | null;
   artifacts: string[];
+  skillId?: string;
+  original?: string;
 }) {
   if (!result && artifacts.length === 0) {
     return <div className="dim">产物会显示在这里…</div>;
   }
+  const showPolishCompare = skillId === "nature-polishing" && original && result;
+  const showReviewer = skillId === "nature-reviewer" && result;
   return (
     <div className="preview">
-      {result && (
-        <div className="result-card">
-          <div className="result-head">最终结果</div>
-          <div className="md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+      {showPolishCompare ? (
+        <div className="compare">
+          <div className="compare-col">
+            <div className="result-head plain">原稿</div>
+            <div className="md">
+              <pre className="orig">{original}</pre>
+            </div>
+          </div>
+          <div className="compare-col">
+            <div className="result-head">润色 / 结果</div>
+            <div className="md">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{result!}</ReactMarkdown>
+            </div>
           </div>
         </div>
+      ) : showReviewer ? (
+        <div className="result-card">
+          <div className="result-head">审稿报告</div>
+          <ReviewerView md={result!} />
+        </div>
+      ) : (
+        result && (
+          <div className="result-card">
+            <div className="result-head">最终结果</div>
+            <div className="md">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+            </div>
+          </div>
+        )
       )}
       {artifacts.map((p) => (
-        <FileArtifact key={p} path={p} />
+        <FileArtifact key={p} path={p} skillId={skillId} />
       ))}
     </div>
   );
