@@ -57,7 +57,7 @@ fn resolve_template(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
     let resource = app.path().resource_dir().ok();
     let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let candidates: [Option<PathBuf>; 2] = [
-        resource.map(|d| d.join("chart_renderer/templates").join(name)),
+        resource.map(|d| d.join("resources/chart_renderer/templates").join(name)),
         Some(dev.join("resources/chart_renderer/templates").join(name)),
     ];
     for c in candidates.into_iter().flatten() {
@@ -110,10 +110,9 @@ pub async fn preview_plot(
     fs::copy(&template_path, work.join("plot.py"))
         .map_err(|e| format!("复制模板失败: {e}"))?;
 
-    // 6. 获取 python(优先 uv venv,回退系统 python3)
-    let venv_py = pyenv::venv_python();
-    let python: PathBuf = if venv_py.exists() {
-        venv_py
+    // 6. 获取 python(优先已就绪的 uv venv,回退系统 python3)
+    let python: PathBuf = if pyenv::is_ready() {
+        pyenv::venv_python()
     } else {
         PathBuf::from("python3")
     };

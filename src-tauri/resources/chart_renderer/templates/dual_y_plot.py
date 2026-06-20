@@ -75,6 +75,8 @@ def main() -> int:
     datetime_plotted = False
     for idx, series in enumerate(series_list):
         x = series.get("x") or []
+        if series.get("visible") is False:
+            continue
         y = series.get("y") or []
         name = str(series.get("name") or f"series_{idx + 1}")
         axis = str(series_axis.get(name) or "y").lower()
