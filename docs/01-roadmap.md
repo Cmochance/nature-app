@@ -225,7 +225,8 @@ figure 再改一版=新 run,`parentRunId` 串版本树。全本地、零遥测�
 - [FE] token 用量展示(turn.completed.usage)
 - **Exit**:figure 出图→看图→改图→对比闭环;体检面板覆盖所有 skill 依赖并给修复指引
 
-### M3 — 高价值定制 + academic-search
+### M3 — 高价值定制 + academic-search ✅(代码完成 2026-06-20)
+> polishing 原稿/润色对照 + reviewer 三栏(按 report-structure.md)+ reader 双语(按 output-spec.md)+ academic-search MCP 注册(codex mcp add,uv run,免费源邮箱)+ 引用列表(bib/ris/enw 解析 + 交给 Zotero)。cargo check + 前端 build 全绿;待 GUI 冒烟(尤其 academic-search 真实检索)。
 - [FE] polishing diff 视图(原稿 vs 润色)、reader 双语对照 + source_map.json 树、reviewer 三栏
 - [RS] academic-search MCP server 生命周期(uv run FastMCP/stdio)+ 注册进 codex config(免费源邮箱设置面板,隐藏 Elsevier)
 - [FE] citation/academic-search 引用列表 + 导 Zotero(集成方式据 M0 #7)

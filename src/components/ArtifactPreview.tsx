@@ -6,9 +6,11 @@ import { readTextFile } from "@tauri-apps/plugin-fs";
 import { openPath } from "@tauri-apps/plugin-opener";
 import ReviewerView from "./ReviewerView";
 import ReaderBilingual from "./ReaderBilingual";
+import CitationList from "./CitationList";
 
 const IMG = ["png", "svg", "jpg", "jpeg", "gif", "webp"];
-const TEXT = ["md", "txt", "json", "csv", "tsv", "bib", "ris", "enw", "nbib", "rdf", "log", "py", "tex"];
+const CITATION = ["bib", "ris", "enw", "nbib"];
+const TEXT = ["md", "txt", "json", "csv", "tsv", "rdf", "log", "py", "tex"];
 
 const ext = (p: string) => (p.split(".").pop() || "").toLowerCase();
 const base = (p: string) => p.split("/").pop() || p;
@@ -53,6 +55,7 @@ function FileArtifact({ path, skillId }: { path: string; skillId?: string }) {
       </figure>
     );
   }
+  if (CITATION.includes(e)) return <CitationList path={path} />;
   if (TEXT.includes(e)) return <TextArtifact path={path} isMd={e === "md"} />;
   // 其它(docx/pptx/pdf 等)→ 用系统软件打开
   return (

@@ -120,7 +120,7 @@ pub struct EngineStatus {
 }
 
 /// 解析 codex 可执行路径:env 覆盖 > Codex.app 内置(本机已验证 0.142)> PATH。
-fn resolve_codex_bin() -> String {
+pub fn resolve_codex_bin() -> String {
     if let Ok(p) = std::env::var("NATURE_APP_CODEX_BIN") {
         if !p.is_empty() {
             return p;

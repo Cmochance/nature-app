@@ -1,3 +1,4 @@
+mod acsearch;
 mod engine;
 mod pyenv;
 mod skills;
@@ -110,6 +111,18 @@ fn prepare_pyenv() -> Result<(), String> {
     pyenv::ensure_pyenv()
 }
 
+/// academic-search MCP 是否已注册进 codex。
+#[tauri::command]
+fn check_academic_search() -> bool {
+    acsearch::is_registered()
+}
+
+/// 注册 academic-search MCP(免费源,需 PubMed 邮箱)。
+#[tauri::command]
+fn register_academic_search(email: String) -> Result<(), String> {
+    acsearch::register(&email)
+}
+
 /// 启动一个 skill 任务,流式事件经 `on_event` Channel 推回前端,返回 task_id。
 #[tauri::command]
 fn run_skill_task(
@@ -163,7 +176,9 @@ pub fn run() {
             install_skills,
             check_pyenv,
             prepare_pyenv,
-            check_doctor
+            check_doctor,
+            check_academic_search,
+            register_academic_search
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

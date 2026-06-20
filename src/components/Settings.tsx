@@ -13,10 +13,30 @@ export default function Settings({
   const [preparing, setPreparing] = useState(false);
   const [prepErr, setPrepErr] = useState<string | null>(null);
 
+  // academic-search MCP
+  const [email, setEmail] = useState("");
+  const [acRegistered, setAcRegistered] = useState<boolean | null>(null);
+  const [acBusy, setAcBusy] = useState(false);
+  const [acErr, setAcErr] = useState<string | null>(null);
+
   function refresh() {
     invoke<DoctorReport>("check_doctor").then(setDoctor).catch(() => setDoctor(null));
+    invoke<boolean>("check_academic_search").then(setAcRegistered).catch(() => setAcRegistered(null));
   }
   useEffect(() => refresh(), []);
+
+  async function registerAcademic() {
+    if (!email.trim()) return;
+    setAcBusy(true);
+    setAcErr(null);
+    try {
+      await invoke("register_academic_search", { email: email.trim() });
+      setAcRegistered(true);
+    } catch (e) {
+      setAcErr(String(e));
+    }
+    setAcBusy(false);
+  }
 
   async function prepare() {
     setPreparing(true);
@@ -86,6 +106,29 @@ export default function Settings({
           </div>
         </>
       )}
+
+      <div className="doctor-block">
+        <h3>文献检索(academic-search MCP)</h3>
+        {row(
+          "MCP 注册",
+          acRegistered === true,
+          acRegistered === null ? "检测中…" : acRegistered ? "已注册" : "未注册"
+        )}
+        <p className="dim small">首版仅免费源(arXiv / Crossref / PubMed),只需一个邮箱(PubMed 礼貌用)。</p>
+        <div className="row">
+          <input
+            className="refine-input"
+            type="email"
+            placeholder="you@example.com(PubMed 邮箱)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <button className="primary" onClick={registerAcademic} disabled={acBusy || !email.trim()}>
+            {acBusy ? "注册中…" : acRegistered ? "重新注册" : "注册 MCP"}
+          </button>
+        </div>
+        {acErr && <div className="err small">失败:{acErr}</div>}
+      </div>
 
       <div className="doctor-block">
         <h3>执行安全</h3>
