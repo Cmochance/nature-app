@@ -153,6 +153,7 @@ pub fn ensure_pyenv() -> Result<(), String> {
         ));
     }
 
-    std::fs::write(marker(), MARKER_VERSION).ok();
+    std::fs::write(marker(), MARKER_VERSION)
+        .map_err(|e| format!("写 venv marker 失败(venv 已建但下次会重装): {e}"))?;
     Ok(())
 }

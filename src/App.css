@@ -90,6 +90,7 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 .line.msg .txt { color: #fff; font-weight: 600; }
 .line.ok .txt { color: #8bcf8b; }
 .line.err .txt { color: #ff8a87; }
+.line.warn .txt { color: #e8c060; }
 .line.dim .txt { color: #9a9aa0; }
 
 .artifacts {
@@ -119,6 +120,8 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 /* ---- 目录 ---- */
 .catalog { flex: 1; overflow: auto; }
 .catalog-hint { font-size: 13px; color: #666; margin: 4px 2px 12px; }
+.load-error { color: #b64342; font-size: 13px; padding: 12px; border: 1px solid #f0c9c8; border-radius: 8px; background: #fdf4f4; }
+.setup-warn { color: #8a5a00; font-size: 12px; padding: 8px 12px; border: 1px solid #f0d9a8; border-radius: 8px; background: #fdf8ec; margin-bottom: 12px; }
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

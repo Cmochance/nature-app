@@ -10,10 +10,11 @@
 //! 注:spawn 在 Rust 侧(完全受信),不经 tauri shell 插件的 capability;
 //! 也因 shell 插件 CommandChild 无法关闭 stdin 而改用 std::process。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -22,10 +23,16 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use uuid::Uuid;
 
-/// 全局任务表(task_id → 子进程句柄),用于取消与回收。
+/// 单个任务的句柄:子进程 + 取消标志。
+pub struct TaskHandle {
+    pub child: Mutex<Child>,
+    pub cancelled: AtomicBool,
+}
+
+/// 全局任务表(task_id → 句柄),用于取消与回收。
 #[derive(Default)]
 pub struct EngineState {
-    pub tasks: Arc<DashMap<String, Arc<Mutex<Child>>>>,
+    pub tasks: Arc<DashMap<String, Arc<TaskHandle>>>,
 }
 
 /// 前端传入的任务规格。
@@ -105,10 +112,11 @@ pub enum DomainEvent {
     EngineError { class: String, message: String },
     #[serde(rename_all = "camelCase")]
     Finished {
-        outcome: String,
+        outcome: String, // success | failure | cancelled
         exit_code: Option<i32>,
         thread_id: Option<String>,
         usage: Usage,
+        artifact_count: usize,
     },
 }
 
@@ -212,13 +220,24 @@ pub fn run_task(
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| format!("spawn codex failed ({bin}): {e}"))?;
+        .map_err(|e| format!("无法启动 codex(请确认已安装并 codex login): {e}"))?;
 
-    // 写 stdin 上下文后立即关闭(drop writer)→ EOF
-    if let Some(ctx) = &spec.stdin_context {
+    // stdin:写上下文用独立线程,避免大上下文(SKILL.md 常 >64KB)+ 满管道时
+    // 同步写在读 stdout 之前导致的经典 pipe 死锁。写失败上报而非静默吞掉。
+    if let Some(ctx) = spec.stdin_context.clone() {
         if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(ctx.as_bytes());
-            // stdin 在此作用域结束被 drop → 关闭写端
+            let stdin_ch = channel.clone();
+            std::thread::spawn(move || {
+                if let Err(e) = stdin.write_all(ctx.as_bytes()) {
+                    stdin_ch
+                        .send(DomainEvent::EngineError {
+                            class: "engineError".into(),
+                            message: format!("写入任务上下文失败: {e}"),
+                        })
+                        .ok();
+                }
+                // stdin 在此 drop → EOF
+            });
         }
     }
 
@@ -232,48 +251,66 @@ pub fn run_task(
         })
         .ok();
 
-    let child_arc = Arc::new(Mutex::new(child));
-    state.tasks.insert(task_id.clone(), child_arc.clone());
-
-    // stderr:仅收集诊断(codex 往 stderr 写日志,不当错误)。
-    std::thread::spawn(move || {
-        let reader = BufReader::new(stderr);
-        for _line in reader.lines().map_while(Result::ok) {
-            // M0:暂不转发;后续可做诊断环形缓冲
-        }
+    let handle = Arc::new(TaskHandle {
+        child: Mutex::new(child),
+        cancelled: AtomicBool::new(false),
     });
+    state.tasks.insert(task_id.clone(), handle.clone());
 
-    // stdout:逐行解析 JSONL → DomainEvent。
-    let ch = channel.clone();
-    let tasks = state.tasks.clone();
-    let task_id2 = task_id.clone();
-    let child_for_wait = child_arc.clone();
+    // stderr:收集尾部 N 行到环形缓冲(诊断 + 失败时作为原因分类),不再整段丢弃。
+    let stderr_buf = Arc::new(Mutex::new(VecDeque::<String>::with_capacity(64)));
+    {
+        let buf = stderr_buf.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                if let Ok(mut b) = buf.lock() {
+                    if b.len() >= 64 {
+                        b.pop_front();
+                    }
+                    b.push_back(line);
+                }
+            }
+        });
+    }
+
     let workdir = spec.workdir.clone();
+    let task_dir_cleanup = task_dir.clone();
 
-    // 无活动看门狗:长时间无新事件且任务未结束 → kill(安全网,阈值给足避免误杀长任务)。
+    // 无活动看门狗:进程仍存活且长时间无新事件才 kill(用 try_wait 判活,避免误杀正在
+    // 收尾或正常长跑的任务);阈值给足。
     let last_activity = Arc::new(Mutex::new(Instant::now()));
     {
-        let wd_child = child_arc.clone();
+        let wd_handle = handle.clone();
         let wd_activity = last_activity.clone();
         let wd_tasks = state.tasks.clone();
         let wd_id = task_id.clone();
         let wd_ch = channel.clone();
         std::thread::spawn(move || {
-            const IDLE_LIMIT_SECS: u64 = 300;
+            const IDLE_LIMIT_SECS: u64 = 600;
             loop {
                 std::thread::sleep(Duration::from_secs(15));
                 if !wd_tasks.contains_key(&wd_id) {
-                    break; // 任务已正常结束并从表移除
+                    break; // 任务已结束并移除
+                }
+                let still_running = wd_handle
+                    .child
+                    .lock()
+                    .map(|mut c| matches!(c.try_wait(), Ok(None)))
+                    .unwrap_or(false);
+                if !still_running {
+                    break; // 进程已退出,交给 stdout 线程收尾
                 }
                 let idle = wd_activity.lock().map(|t| t.elapsed().as_secs()).unwrap_or(0);
                 if idle > IDLE_LIMIT_SECS {
+                    wd_handle.cancelled.store(true, Ordering::SeqCst);
                     wd_ch
                         .send(DomainEvent::EngineError {
                             class: "timeout".into(),
                             message: format!("超过 {IDLE_LIMIT_SECS}s 无新事件,已终止任务"),
                         })
                         .ok();
-                    if let Ok(mut c) = wd_child.lock() {
+                    if let Ok(mut c) = wd_handle.child.lock() {
                         let _ = c.kill();
                     }
                     break;
@@ -282,11 +319,15 @@ pub fn run_task(
         });
     }
 
+    // stdout:逐行解析 JSONL → DomainEvent;此线程是唯一负责 wait + 收尾 + remove 的 owner。
+    let ch = channel.clone();
+    let tasks = state.tasks.clone();
+    let task_id2 = task_id.clone();
+    let wait_handle = handle.clone();
     let activity = last_activity.clone();
     std::thread::spawn(move || {
         let mut last_thread_id: Option<String> = None;
         let mut total_usage = Usage::default();
-        // 已通过 file_change 事件报告过的产物路径,避免快照 diff 重复发。
         let mut emitted_artifacts: HashSet<String> = HashSet::new();
 
         let reader = BufReader::new(stdout);
@@ -298,7 +339,9 @@ pub fn run_task(
             if line.trim().is_empty() {
                 continue;
             }
-            *activity.lock().unwrap() = Instant::now();
+            if let Ok(mut a) = activity.lock() {
+                *a = Instant::now();
+            }
             for ev in map_line(&line, &mut last_thread_id, &mut total_usage) {
                 if let DomainEvent::Artifact { path, .. } = &ev {
                     emitted_artifacts.insert(path.clone());
@@ -307,14 +350,15 @@ pub fn run_task(
             }
         }
 
-        // 等待退出码
-        let exit_code = {
-            let mut c = child_for_wait.lock().unwrap();
-            c.wait().ok().and_then(|s| s.code())
-        };
+        // 等待退出码(锁/wait 全容错,不 unwrap,避免线程 panic 卡死 UI)。
+        let exit_code = wait_handle
+            .child
+            .lock()
+            .ok()
+            .and_then(|mut c| c.wait().ok())
+            .and_then(|s| s.code());
 
-        // 兜底:工作目录快照 diff,捕获 shell 命令(如 matplotlib savefig)写出的、
-        // 不会发 file_change 事件的产物。
+        // 快照 diff 兜底:捕获 shell 命令(matplotlib 等)写出、不发 file_change 的产物。
         let after = snapshot_dir(Path::new(&workdir));
         let mut diff_paths: Vec<String> = after
             .iter()
@@ -324,6 +368,7 @@ pub fn run_task(
             .collect();
         diff_paths.sort();
         for p in diff_paths {
+            emitted_artifacts.insert(p.clone());
             ch.send(DomainEvent::Artifact {
                 path: p,
                 change_kind: "add".into(),
@@ -331,18 +376,64 @@ pub fn run_task(
             .ok();
         }
 
-        let outcome = if exit_code == Some(0) { "success" } else { "failure" };
+        let cancelled = wait_handle.cancelled.load(Ordering::SeqCst);
+        // 失败且非取消 → 把 stderr 尾部作为原因分类发出(否则用户只见 failure 零信息)。
+        if !cancelled && exit_code != Some(0) {
+            let tail = stderr_buf
+                .lock()
+                .map(|b| b.iter().cloned().collect::<Vec<_>>().join("\n"))
+                .unwrap_or_default();
+            if !tail.trim().is_empty() {
+                ch.send(DomainEvent::EngineError {
+                    class: classify_stderr(&tail),
+                    message: tail,
+                })
+                .ok();
+            }
+        }
+
+        let outcome = if cancelled {
+            "cancelled"
+        } else if exit_code == Some(0) {
+            "success"
+        } else {
+            "failure"
+        };
         ch.send(DomainEvent::Finished {
             outcome: outcome.into(),
             exit_code,
             thread_id: last_thread_id.clone(),
             usage: total_usage.clone(),
+            artifact_count: emitted_artifacts.len(),
         })
         .ok();
+
         tasks.remove(&task_id2);
+        let _ = std::fs::remove_dir_all(&task_dir_cleanup); // 清理 temp 目录,避免堆积
     });
 
     Ok(task_id)
+}
+
+/// 根据 stderr 尾部内容粗分类,激活前端对应 CTA。
+fn classify_stderr(s: &str) -> String {
+    let l = s.to_lowercase();
+    if l.contains("not logged in")
+        || l.contains("please run codex login")
+        || l.contains("unauthorized")
+        || l.contains("401")
+    {
+        "notLoggedIn".into()
+    } else if l.contains("failed to connect")
+        || l.contains("could not resolve")
+        || l.contains("network")
+        || l.contains("dns error")
+        || l.contains("sandbox")
+    {
+        "networkBlocked".into()
+    } else {
+        "engineError".into()
+    }
 }
 
 /// 一行 JSONL → 0..N 个 DomainEvent。容错:解析失败/未知类型降级为 Raw。
@@ -548,10 +639,11 @@ fn walk_dir(dir: &Path, depth: usize, out: &mut HashMap<String, (u64, u64)>) {
     }
 }
 
-/// 取消任务:kill 子进程并从表中移除。
+/// 取消任务:标记取消 + kill;由 stdout 线程发 cancelled 结局并从表移除(状态一致)。
 pub fn cancel_task(state: &EngineState, task_id: &str) {
-    if let Some((_, child)) = state.tasks.remove(task_id) {
-        if let Ok(mut c) = child.lock() {
+    if let Some(h) = state.tasks.get(task_id) {
+        h.cancelled.store(true, Ordering::SeqCst);
+        if let Ok(mut c) = h.child.lock() {
             let _ = c.kill();
         }
     }

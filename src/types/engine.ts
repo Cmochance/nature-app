@@ -35,10 +35,11 @@ export type DomainEvent =
   | { kind: "engineError"; class: string; message: string }
   | {
       kind: "finished";
-      outcome: string;
+      outcome: string; // success | failure | cancelled
       exitCode?: number | null;
       threadId?: string | null;
       usage: Usage;
+      artifactCount: number;
     };
 
 export interface EngineStatus {

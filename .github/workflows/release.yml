@@ -1,0 +1,57 @@
+name: Release
+
+# mac/win 端 app 打包:推 v* tag 或手动触发时,在各自平台原生构建并打包,
+# 产物上传到一个 **draft** GitHub Release(默认草稿,确认后再手动发布为正式版)。
+# Tauri 跨平台硬约束:macOS 必须在 macOS 构建、Windows MSI 必须在 Windows 构建。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+          - os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build & package (Tauri) → draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 代码签名/公证待配 secrets 后启用:
+          #   macOS: APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY /
+          #          APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+          #   Windows: 代码签名证书
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.1.0-dev-{0}', github.run_number) }}
+          releaseName: "Nature App ${{ github.ref_type == 'tag' && github.ref_name || 'dev build' }}"
+          releaseDraft: true
+          prerelease: false

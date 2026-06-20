@@ -7,7 +7,21 @@ use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
 use serde::Serialize;
 use skills::SkillDescriptor;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
+use tauri::Manager;
+
+/// 首启自举(skills 同步 / pyenv 自建)的结果,供 UI 显示
+/// (打包后 GUI 无终端,eprintln 用户看不到)。
+#[derive(Default, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SetupStatus {
+    skills: String,
+    pyenv: String,
+}
+
+#[derive(Default)]
+struct SetupState(Arc<Mutex<SetupStatus>>);
 
 /// 单项工具体检结果。
 #[derive(Serialize)]
@@ -123,6 +137,12 @@ fn register_academic_search(email: String) -> Result<(), String> {
     acsearch::register(&email)
 }
 
+/// 首启自举结果(skills/pyenv),供 Settings 显示失败原因。
+#[tauri::command]
+fn get_setup_status(state: tauri::State<SetupState>) -> SetupStatus {
+    state.0.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
 /// 启动一个 skill 任务,流式事件经 `on_event` Channel 推回前端,返回 task_id。
 #[tauri::command]
 fn run_skill_task(
@@ -153,18 +173,32 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(EngineState::default())
-        .setup(|_app| {
-            // 启动后台同步 bundled skills 到 ~/.codex/skills/(幂等,首启拷贝不阻塞窗口)。
-            std::thread::spawn(|| {
-                match skills::install_skills(&skills::skills_root()) {
-                    Ok(n) => eprintln!("[nature-app] skills synced: {n} dir(s)"),
-                    Err(e) => eprintln!("[nature-app] skills install failed: {e}"),
+        .manage(SetupState::default())
+        .setup(|app| {
+            let st = app.state::<SetupState>().0.clone();
+            let st_py = st.clone();
+            // 后台同步 bundled skills 到 ~/.codex/skills/(幂等,首启拷贝不阻塞窗口)。
+            std::thread::spawn(move || {
+                let msg = match skills::install_skills(&skills::skills_root()) {
+                    Ok(0) => "已是最新".to_string(),
+                    Ok(n) => format!("已同步 {n} 个目录"),
+                    Err(e) => format!("失败: {e}"),
+                };
+                eprintln!("[nature-app] skills: {msg}");
+                if let Ok(mut s) = st.lock() {
+                    s.skills = msg;
                 }
             });
-            // 后台自举 uv 隔离 Python 环境(首次下载 wheels 较慢;未就绪时 engine 回落系统 python)。
-            std::thread::spawn(|| match pyenv::ensure_pyenv() {
-                Ok(()) => eprintln!("[nature-app] pyenv ready"),
-                Err(e) => eprintln!("[nature-app] pyenv setup skipped: {e}"),
+            // 后台自举 uv 隔离 Python(首次下载 wheels 较慢;未就绪时 engine 回落系统 python)。
+            std::thread::spawn(move || {
+                let msg = match pyenv::ensure_pyenv() {
+                    Ok(()) => "就绪".to_string(),
+                    Err(e) => format!("失败: {e}"),
+                };
+                eprintln!("[nature-app] pyenv: {msg}");
+                if let Ok(mut s) = st_py.lock() {
+                    s.pyenv = msg;
+                }
             });
             Ok(())
         })
@@ -178,7 +212,8 @@ pub fn run() {
             prepare_pyenv,
             check_doctor,
             check_academic_search,
-            register_academic_search
+            register_academic_search,
+            get_setup_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

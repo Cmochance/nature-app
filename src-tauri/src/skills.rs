@@ -245,12 +245,18 @@ pub fn install_skills(bundled_root: &Path) -> Result<usize, String> {
         // 只装 _shared 与 nature-*;不碰用户已有的其它 skill
         if entry.path().is_dir() && (ns == "_shared" || ns.starts_with("nature-")) {
             let dst = codex_skills.join(&name);
-            let _ = std::fs::remove_dir_all(&dst);
+            // 清旧版失败(非"不存在")必须传播,否则残留旧文件 + 下面照写 marker → 永久脏状态
+            if let Err(e) = std::fs::remove_dir_all(&dst) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    return Err(format!("清理旧 skill {ns} 失败: {e}"));
+                }
+            }
             copy_dir_all(&entry.path(), &dst).map_err(|e| format!("copy {ns}: {e}"))?;
             n += 1;
         }
     }
-    std::fs::write(&marker, &pin).ok();
+    // marker 写失败也传播:否则下次跳过 → 假"已是最新"
+    std::fs::write(&marker, &pin).map_err(|e| format!("写 skills marker 失败: {e}"))?;
     Ok(n)
 }
 

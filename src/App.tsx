@@ -71,10 +71,16 @@ export default function App() {
   const [selected, setSelected] = useState<SkillDescriptor | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [dangerSandbox, setDangerSandbox] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<EngineStatus>("check_engine").then(setEngine).catch(() => setEngine(null));
-    invoke<SkillDescriptor[]>("list_skills").then(setSkills).catch(() => setSkills([]));
+    invoke<SkillDescriptor[]>("list_skills")
+      .then((s) => {
+        setSkills(s);
+        setSkillsError(null);
+      })
+      .catch((e) => setSkillsError(String(e)));
   }, []);
 
   function goHome() {
@@ -114,7 +120,7 @@ export default function App() {
       ) : selected ? (
         <RunView skill={selected} dangerSandbox={dangerSandbox} onBack={() => setSelected(null)} />
       ) : (
-        <Catalog skills={skills} onPick={setSelected} />
+        <Catalog skills={skills} error={skillsError} onPick={setSelected} />
       )}
     </main>
   );
@@ -122,11 +128,20 @@ export default function App() {
 
 function Catalog({
   skills,
+  error,
   onPick,
 }: {
   skills: SkillDescriptor[];
+  error: string | null;
   onPick: (s: SkillDescriptor) => void;
 }) {
+  if (error) {
+    return (
+      <section className="catalog">
+        <div className="load-error">加载 skill 列表失败:{error}</div>
+      </section>
+    );
+  }
   return (
     <section className="catalog">
       <p className="catalog-hint">选择一个科研 skill（共 {skills.length} 个）</p>
@@ -171,6 +186,7 @@ function RunView({
   const [refineInput, setRefineInput] = useState("");
   const [originalInput, setOriginalInput] = useState("");
   const taskIdRef = useRef<string | null>(null);
+  const gotResultRef = useRef(false);
 
   const isFigure = skill.id === "nature-figure";
   // 最近一次生成的绘图脚本(用于"再改一版"回灌)
@@ -199,6 +215,7 @@ function RunView({
     setTokens({ in: 0, out: 0 });
     setRunning(true);
     taskIdRef.current = null;
+    gotResultRef.current = false;
 
     const channel = new Channel<DomainEvent>();
     channel.onmessage = (ev) => {
@@ -222,6 +239,7 @@ function RunView({
         case "assistantMessage":
           push(ev.text, "msg");
           setResult(ev.text); // 保留最后一条作为最终结果
+          gotResultRef.current = true;
           break;
         case "artifact":
           push(`[产物 ${ev.changeKind}] ${ev.path}`, "ok");
@@ -257,7 +275,19 @@ function RunView({
           push(`[raw:${ev.codexType}]`, "dim");
           break;
         case "finished":
-          push(`— 结束:${ev.outcome}(exit=${ev.exitCode ?? "?"})—`, ev.outcome === "success" ? "ok" : "err");
+          if (ev.outcome === "cancelled") {
+            push("— 已取消 —", "dim");
+          } else if (ev.outcome === "success" && ev.artifactCount === 0 && !gotResultRef.current) {
+            push(
+              "⚠ 退出码为 0,但未检测到任何产物或回复 —— 可能未真正完成(常见:沙箱拦截写入 / 指令未触发 skill)",
+              "warn"
+            );
+          } else {
+            push(
+              `— 结束:${ev.outcome}(exit=${ev.exitCode ?? "?"})—`,
+              ev.outcome === "success" ? "ok" : "err"
+            );
+          }
           setRunning(false);
           break;
       }
@@ -291,8 +321,8 @@ function RunView({
     let code = "";
     try {
       code = await readTextFile(lastPy);
-    } catch {
-      /* 读不到脚本就只带要求 */
+    } catch (e) {
+      push("⚠ 读取上一版脚本失败,将从零生成(丢失基线):" + String(e), "warn");
     }
     const v = artifacts.filter((p) => /chart(_v\d+)?\.png$/i.test(p)).length + 1;
     const instr = [

@@ -26,6 +26,9 @@ Tauri (Rust):
 ```
 详见 `docs/`:`00-feasibility-and-direction.md`(方向)、`01-roadmap.md`(完整推进方案)、`01-codex-spikes-results.md`(Codex 实测结论)。
 
+### 平台支持
+**当前仅在 macOS 上开发并实测**(Apple Silicon)。代码含若干 macOS 假设(如探测 `/Applications/Codex.app`、PATH 以 `:` 分隔)。Windows 支持已在 CI 打包矩阵预留,但**尚未实测**;Linux 暂未适配。
+
 ### 前置依赖
 - [Codex CLI](https://github.com/openai/codex)(已 `codex login`)
 - [uv](https://github.com/astral-sh/uv)(用于隔离 Python 环境)

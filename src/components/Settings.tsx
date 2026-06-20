@@ -10,6 +10,7 @@ export default function Settings({
   onDangerChange: (v: boolean) => void;
 }) {
   const [doctor, setDoctor] = useState<DoctorReport | null>(null);
+  const [setup, setSetup] = useState<{ skills: string; pyenv: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepErr, setPrepErr] = useState<string | null>(null);
 
@@ -22,6 +23,7 @@ export default function Settings({
   function refresh() {
     invoke<DoctorReport>("check_doctor").then(setDoctor).catch(() => setDoctor(null));
     invoke<boolean>("check_academic_search").then(setAcRegistered).catch(() => setAcRegistered(null));
+    invoke<{ skills: string; pyenv: string }>("get_setup_status").then(setSetup).catch(() => setSetup(null));
   }
   useEffect(() => refresh(), []);
 
@@ -40,7 +42,11 @@ export default function Settings({
   }
 
   async function registerAcademic() {
-    if (!email.trim()) return;
+    const em = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
+      setAcErr("请输入有效邮箱(用于 PubMed 礼貌标识)");
+      return;
+    }
     setAcBusy(true);
     setAcErr(null);
     try {
@@ -87,6 +93,13 @@ export default function Settings({
   return (
     <section className="settings">
       <h2>环境体检 / 设置</h2>
+
+      {setup && (setup.skills.includes("失败") || setup.pyenv.includes("失败")) && (
+        <div className="setup-warn">
+          首启自举有失败:Skills「{setup.skills || "…"}」/ Python「{setup.pyenv || "…"}」。
+          可在下方"Skills 同步"/"准备 Python 环境"重试。
+        </div>
+      )}
 
       {!doctor ? (
         <div className="dim">体检中…</div>
