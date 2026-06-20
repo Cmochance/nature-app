@@ -203,7 +203,7 @@ function RunView({
 }) {
   const [workdir, setWorkdir] = useState("");
   const [files, setFiles] = useState<string[]>([]);
-  const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false, userInput: "" });
+  const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false, userInput: "", axisSelections: {} });
   const [needsNetwork, setNeedsNetwork] = useState(true);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
@@ -220,6 +220,25 @@ function RunView({
   const [showEditor, setShowEditor] = useState(false);
   const [loadedSpec, setLoadedSpec] = useState<PlotSpec | null>(null);
   const [loadedData, setLoadedData] = useState<PlotData | null>(null);
+  const [dataTypeLabels, setDataTypeLabels] = useState<Record<string, string>>({});
+  const [dataTypePrompts, setDataTypePrompts] = useState<Record<string, string>>({});
+
+  // 加载数据类型标签(供 DynamicForm 的 chip 显示中文)
+  useEffect(() => {
+    if (!isFigure) return;
+    invoke<[unknown, Array<{ id: string; label: string; promptFragment: string }>]>("get_data_types")
+      .then(([, types]) => {
+        const labels: Record<string, string> = {};
+        const prompts: Record<string, string> = {};
+        for (const t of types) {
+          labels[t.id] = t.label;
+          prompts[t.id] = t.promptFragment;
+        }
+        setDataTypeLabels(labels);
+        setDataTypePrompts(prompts);
+      })
+      .catch(() => {});
+  }, [isFigure]);
   // 最近一次生成的绘图脚本(用于"再改一版"回灌)
   const lastPy = [...artifacts].reverse().find((p) => p.endsWith(".py")) || null;
 
@@ -361,8 +380,12 @@ function RunView({
   function run() {
     if (!form.valid) return;
     setOriginalInput(form.userInput);
+    // 提取用户选择的数据类型,注入领域知识描述
+    const dt = form.axisSelections?.["data_type"]?.[0];
+    const dtPrompt = isFigure && dt ? dataTypePrompts[dt] : null;
+    const dtBlock = dtPrompt ? `\n\n【数据类型:${dataTypeLabels[dt] ?? dt}】\n${dtPrompt}` : "";
     const hint = isFigure && chartHint ? `\n参考图型(chart-atlas):${chartHint}` : "";
-    launch(form.instruction + hint);
+    launch(form.instruction + dtBlock + hint);
   }
 
   // figure"再改一版":读上一版脚本 + 新要求,重跑生成新版本
@@ -423,7 +446,7 @@ function RunView({
           <code className="path">{files.length ? `${files.length} 个文件` : "(可选)"}</code>
         </div>
 
-        <DynamicForm skill={skill} files={files} onChange={setForm} />
+        <DynamicForm skill={skill} files={files} onChange={setForm} axisValueLabels={isFigure ? { data_type: dataTypeLabels } : undefined} />
 
         {isFigure && <ChartAtlas skillDir={skill.dir} selected={chartHint} onSelect={setChartHint} />}
         {isFigure && (

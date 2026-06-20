@@ -13,11 +13,15 @@ export interface DynamicFormResult {
   instruction: string;
   valid: boolean;
   userInput: string;
+  /** 各 axis 的选择值(axis name → value[]) */
+  axisSelections: Record<string, string[]>;
 }
 
 interface Props {
   skill: SkillDescriptor;
   files: string[];
+  /** 可选:axis value 的显示标签映射(axis name → value → label) */
+  axisValueLabels?: Record<string, Record<string, string>>;
   onChange: (r: DynamicFormResult) => void;
 }
 
@@ -29,7 +33,7 @@ function initialSelections(skill: SkillDescriptor): Record<string, string[]> {
   return sel;
 }
 
-export default function DynamicForm({ skill, files, onChange }: Props) {
+export default function DynamicForm({ skill, files, axisValueLabels, onChange }: Props) {
   const [sel, setSel] = useState<Record<string, string[]>>(() => initialSelections(skill));
   const [userInput, setUserInput] = useState("");
 
@@ -61,8 +65,8 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
   }, [skill, sel, userInput, files]);
 
   useEffect(() => {
-    onChange({ instruction, valid, userInput });
-  }, [instruction, valid, userInput]);
+    onChange({ instruction, valid, userInput, axisSelections: sel });
+  }, [instruction, valid, userInput, sel]);
 
   function toggle(ax: Axis, value: string) {
     setSel((prev) => {
@@ -89,6 +93,7 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
               {ax.values.map((v) => {
                 const dis = disabledValue(skill.id, ax.name, v);
                 const on = (sel[ax.name] ?? []).includes(v);
+                const label = axisValueLabels?.[ax.name]?.[v] ?? v;
                 return (
                   <button
                     key={v}
@@ -98,7 +103,7 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
                     disabled={!!dis}
                     onClick={() => !dis && toggle(ax, v)}
                   >
-                    {v}
+                    {label}
                   </button>
                 );
               })}

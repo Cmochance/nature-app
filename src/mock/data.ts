@@ -22,6 +22,13 @@ export const MOCK_SKILLS: SkillDescriptor[] = [
         blockingGate: true,
         defaultValue: "python",
       },
+      {
+        name: "data_type",
+        values: ["general", "spectroscopy.ftir", "spectroscopy.raman", "spectroscopy.uvvis", "spectroscopy.xrd", "spectroscopy.xps", "spectroscopy.pl", "thermal.tga", "thermal.dsc", "electrochem.cv", "electrochem.eis"],
+        multi: false,
+        blockingGate: false,
+        defaultValue: null,
+      },
     ],
     onDemand: [
       { condition: "matplotlib/seaborn 绘图", path: "references/python-recipes.md" },

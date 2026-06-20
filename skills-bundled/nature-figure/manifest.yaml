@@ -25,8 +25,29 @@ axes:
       Once selected, the backend is exclusive for all drawing, previewing,
       exporting, and visual QA.
     values:
-      python:  static/fragments/backend/python.md
-      r:       static/fragments/backend/r.md
+     python:  static/fragments/backend/python.md
+     r:       static/fragments/backend/r.md
+   multi: false
+
+  data_type:
+    detect: |
+      Optional. The user may specify the type of scientific data they are
+      plotting (e.g. FTIR, XRD, TGA, CV). If provided, use the domain-specific
+      guidance injected in the instruction to set correct axis directions,
+      units, annotations, and conventions for that data type. If not provided,
+      proceed with general plotting best practices.
+    values:
+      general:               通用数据
+      spectroscopy.ftir:     FTIR 红外光谱
+      spectroscopy.raman:    Raman 拉曼光谱
+      spectroscopy.uvvis:    UV-Vis 紫外可见光谱
+      spectroscopy.xrd:      XRD X射线衍射
+      spectroscopy.xps:      XPS 光电子能谱
+      spectroscopy.pl:       PL 光致发光光谱
+      thermal.tga:           TGA 热重分析
+      thermal.dsc:           DSC 差示扫描量热
+      electrochem.cv:        CV 循环伏安
+      electrochem.eis:       EIS 电化学阻抗
     multi: false
 
 references:

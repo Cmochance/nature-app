@@ -178,8 +178,37 @@ export async function invoke<T = unknown>(
       await delay(1000);
       return undefined as unknown as T;
 
-    case "cancel_task":
-      return undefined as unknown as T;
+   case "cancel_task":
+     return undefined as unknown as T;
+
+    case "get_data_types":
+      return [
+        [
+          { id: "general", label: "通用 / 未分类" },
+          { id: "spectroscopy", label: "光谱 Spectroscopy" },
+          { id: "thermal", label: "热分析 Thermal" },
+          { id: "electrochem", label: "电化学 Electrochemistry" },
+        ],
+        [
+          { id: "general", label: "通用数据", category: "general", promptFragment: "这是一组通用 XY 数据。请根据数据特征选择合适的图型。" },
+          { id: "spectroscopy.ftir", label: "FTIR 红外光谱", category: "spectroscopy", promptFragment: "这是傅里叶变换红外光谱(FTIR)数据。横轴为波数,范围 4000-400 cm⁻¹,X 轴从高到低为惯例。纵轴为吸光度或透过率。" },
+          { id: "spectroscopy.xrd", label: "XRD X射线衍射", category: "spectroscopy", promptFragment: "这是 X 射线衍射(XRD)数据。横轴为衍射角 2θ,纵轴为强度。" },
+          { id: "thermal.tga", label: "TGA 热重分析", category: "thermal", promptFragment: "这是热重分析(TGA)数据。横轴为温度,纵轴为质量百分比。" },
+          { id: "electrochem.cv", label: "CV 循环伏安", category: "electrochem", promptFragment: "这是循环伏安法(CV)数据。横轴为电位,纵轴为电流。" },
+        ],
+      ] as unknown as T;
+
+    case "resolve_data":
+      await delay(200);
+      return {
+        columns: [
+          { name: "wavenumber", values: [4000, 3500, 3000, 2500, 2000, 1500, 1000, 500], min: 400, max: 4000, monotonic: false },
+          { name: "absorbance", values: [0.05, 0.12, 0.08, 0.15, 0.03, 0.22, 0.31, 0.1], min: 0.03, max: 0.31, monotonic: null },
+        ],
+        rowCount: 8,
+        xColumnIndex: 0,
+        yColumnIndices: [1],
+      } as unknown as T;
 
     case "run_skill_task": {
       // 模拟完整的任务事件流:start → reasoning → message → artifact → finished

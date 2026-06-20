@@ -1,4 +1,5 @@
 mod acsearch;
+mod datatypes;
 mod engine;
 mod pyenv;
 mod renderer;
@@ -215,7 +216,9 @@ pub fn run() {
             check_academic_search,
             register_academic_search,
             get_setup_status,
-            renderer::preview_plot
+            renderer::preview_plot,
+            datatypes::get_data_types,
+            datatypes::resolve_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
