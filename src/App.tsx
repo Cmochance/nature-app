@@ -5,6 +5,7 @@ import type { DomainEvent, EngineStatus, TaskSpec } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
 import DynamicForm, { type DynamicFormResult } from "./components/DynamicForm";
 import ArtifactPreview from "./components/ArtifactPreview";
+import Settings from "./components/Settings";
 import "./App.css";
 
 interface LogLine {
@@ -23,19 +24,27 @@ export default function App() {
   const [engine, setEngine] = useState<EngineStatus | null>(null);
   const [skills, setSkills] = useState<SkillDescriptor[]>([]);
   const [selected, setSelected] = useState<SkillDescriptor | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [dangerSandbox, setDangerSandbox] = useState(false);
 
   useEffect(() => {
     invoke<EngineStatus>("check_engine").then(setEngine).catch(() => setEngine(null));
     invoke<SkillDescriptor[]>("list_skills").then(setSkills).catch(() => setSkills([]));
   }, []);
 
+  function goHome() {
+    setSelected(null);
+    setShowSettings(false);
+  }
+
   return (
     <main className="app">
       <header className="topbar">
-        <h1 onClick={() => setSelected(null)} style={{ cursor: "pointer" }}>
-          Nature App <span className="tag">M1</span>
+        <h1 onClick={goHome} style={{ cursor: "pointer" }}>
+          Nature App <span className="tag">M2</span>
         </h1>
         <div className="engine">
+          {dangerSandbox && <span className="warn-pill">全放开沙箱</span>}
           {engine ? (
             <>
               <span className={engine.loggedIn ? "ok" : "err"}>
@@ -46,11 +55,19 @@ export default function App() {
           ) : (
             <span className="dim">检测引擎中…</span>
           )}
+          <button className="gear" title="环境体检 / 设置" onClick={() => setShowSettings(true)}>
+            ⚙
+          </button>
         </div>
       </header>
 
-      {selected ? (
-        <RunView skill={selected} onBack={() => setSelected(null)} />
+      {showSettings ? (
+        <div className="settings-wrap">
+          <button className="link" onClick={() => setShowSettings(false)}>← 返回</button>
+          <Settings dangerSandbox={dangerSandbox} onDangerChange={setDangerSandbox} />
+        </div>
+      ) : selected ? (
+        <RunView skill={selected} dangerSandbox={dangerSandbox} onBack={() => setSelected(null)} />
       ) : (
         <Catalog skills={skills} onPick={setSelected} />
       )}
@@ -87,7 +104,15 @@ function Catalog({
   );
 }
 
-function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void }) {
+function RunView({
+  skill,
+  dangerSandbox,
+  onBack,
+}: {
+  skill: SkillDescriptor;
+  dangerSandbox: boolean;
+  onBack: () => void;
+}) {
   const [workdir, setWorkdir] = useState("");
   const [files, setFiles] = useState<string[]>([]);
   const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false });
@@ -96,6 +121,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
   const [log, setLog] = useState<LogLine[]>([]);
   const [artifacts, setArtifacts] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
+  const [tokens, setTokens] = useState({ in: 0, out: 0 });
   const taskIdRef = useRef<string | null>(null);
 
   function push(text: string, cls?: string) {
@@ -118,6 +144,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
     setLog([]);
     setArtifacts([]);
     setResult(null);
+    setTokens({ in: 0, out: 0 });
     setRunning(true);
     taskIdRef.current = null;
 
@@ -153,6 +180,10 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
             `tokens: in ${ev.usage.input_tokens} (cached ${ev.usage.cached_input_tokens}) / out ${ev.usage.output_tokens}`,
             "dim"
           );
+          setTokens((p) => ({
+            in: p.in + ev.usage.input_tokens,
+            out: p.out + ev.usage.output_tokens,
+          }));
           break;
         case "engineError":
           push(`[错误:${ev.class}] ${ev.message}`, "err");
@@ -170,7 +201,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
     const spec: TaskSpec = {
       instruction: form.instruction,
       workdir,
-      sandboxTier: "workspaceWrite",
+      sandboxTier: dangerSandbox ? "dangerFullAccess" : "workspaceWrite",
       needsNetwork,
     };
 
@@ -195,6 +226,10 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
         <button className="link" onClick={onBack}>← 返回目录</button>
         <span className="run-title">{skill.id}</span>
         <span className={"badge " + skill.status}>{STATUS_LABEL[skill.status] ?? skill.status}</span>
+        <div className="spacer" />
+        {(tokens.in > 0 || tokens.out > 0) && (
+          <span className="dim small">累计 tokens: in {tokens.in.toLocaleString()} / out {tokens.out.toLocaleString()}</span>
+        )}
       </div>
 
       <section className="form">

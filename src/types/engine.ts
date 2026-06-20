@@ -45,3 +45,23 @@ export interface EngineStatus {
   version?: string | null;
   loggedIn: boolean;
 }
+
+export interface PyEnvStatus {
+  uv?: string | null;
+  ready: boolean;
+  venv: string;
+  python?: string | null;
+}
+
+export interface ToolCheck {
+  name: string;
+  ok: boolean;
+  path?: string | null;
+  hint?: string | null;
+}
+
+export interface DoctorReport {
+  engine: EngineStatus;
+  pyenv: PyEnvStatus;
+  tools: ToolCheck[];
+}

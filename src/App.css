@@ -206,3 +206,25 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 .art .code { font-size: 11px; max-height: 280px; overflow: auto; background: #f5f5f7; padding: 8px; border-radius: 6px; }
 .file-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .file-row .fname { font-size: 12px; }
+
+/* ---- 顶栏附加 ---- */
+.gear { padding: 2px 8px; font-size: 15px; line-height: 1; border-radius: 8px; }
+.warn-pill { font-size: 11px; background: #b64342; color: #fff; padding: 1px 8px; border-radius: 999px; }
+.small { font-size: 11px; }
+
+/* ---- 设置 / 体检 ---- */
+.settings-wrap { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.settings { max-width: 720px; }
+.settings h2 { font-size: 16px; margin: 6px 0 12px; }
+.doctor-block { border: 1px solid #e2e2e6; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; background: #fff; }
+.doctor-block h3 { font-size: 13px; margin: 0 0 8px; color: #333; }
+.doctor-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; flex-wrap: wrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot.ok { background: #1a7f37; }
+.dot.err { background: #b64342; }
+.d-label { font-weight: 600; min-width: 90px; }
+.d-detail { color: #555; }
+.d-hint { color: #999; font-size: 11px; }
+.prep { margin-top: 8px; }
+.danger-toggle { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+.danger-toggle .warn { color: #b64342; font-weight: 600; }

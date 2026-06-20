@@ -3,8 +3,88 @@ mod pyenv;
 mod skills;
 
 use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
+use serde::Serialize;
 use skills::SkillDescriptor;
+use std::path::Path;
 use tauri::ipc::Channel;
+
+/// 单项工具体检结果。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolCheck {
+    name: String,
+    ok: bool,
+    path: Option<String>,
+    hint: Option<String>,
+}
+
+/// 环境体检总报告。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DoctorReport {
+    engine: EngineStatus,
+    pyenv: pyenv::PyEnvStatus,
+    tools: Vec<ToolCheck>,
+}
+
+/// 在 PATH 与常见位置查二进制(不 spawn,避免卡顿)。
+fn find_bin(names: &[&str], extra: &[&str]) -> Option<String> {
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in path.split(':') {
+            for n in names {
+                let p = Path::new(dir).join(n);
+                if p.exists() {
+                    return Some(p.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    for e in extra {
+        if Path::new(e).exists() {
+            return Some(e.to_string());
+        }
+    }
+    None
+}
+
+/// 环境体检:codex / uv venv / 系统二进制。
+#[tauri::command]
+fn check_doctor() -> DoctorReport {
+    let lo = find_bin(
+        &["soffice", "libreoffice"],
+        &["/Applications/LibreOffice.app/Contents/MacOS/soffice"],
+    );
+    let pandoc = find_bin(&["pandoc"], &["/opt/homebrew/bin/pandoc", "/usr/local/bin/pandoc"]);
+    let pdflatex = find_bin(
+        &["pdflatex"],
+        &["/Library/TeX/texbin/pdflatex", "/usr/local/texlive/bin/pdflatex"],
+    );
+    let tools = vec![
+        ToolCheck {
+            name: "LibreOffice".into(),
+            ok: lo.is_some(),
+            path: lo,
+            hint: Some("paper2ppt/docx 预览需要(可选);brew install --cask libreoffice".into()),
+        },
+        ToolCheck {
+            name: "pandoc".into(),
+            ok: pandoc.is_some(),
+            path: pandoc,
+            hint: Some("部分文档转换需要(可选);brew install pandoc".into()),
+        },
+        ToolCheck {
+            name: "pdflatex".into(),
+            ok: pdflatex.is_some(),
+            path: pdflatex,
+            hint: Some("LaTeX 排版校验需要(可选);安装 MacTeX/TeX Live".into()),
+        },
+    ];
+    DoctorReport {
+        engine: engine::check_engine(),
+        pyenv: pyenv::status(),
+        tools,
+    }
+}
 
 /// 列出所有 nature-* skill(解析 bundled manifest + SKILL.md)。
 #[tauri::command]
@@ -82,7 +162,8 @@ pub fn run() {
             list_skills,
             install_skills,
             check_pyenv,
-            prepare_pyenv
+            prepare_pyenv,
+            check_doctor
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
