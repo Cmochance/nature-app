@@ -193,6 +193,12 @@ pub fn run_task(
     cmd.env("MPLBACKEND", "Agg");
     cmd.env("MPLCONFIGDIR", cache_root.join("mpl"));
     cmd.env("XDG_CACHE_HOME", &cache_root);
+    // uv 隔离环境就绪时前置其 bin 到 PATH → codex 跑的 python3 解析到稳定 pinned 版,
+    // 而非系统 3.14(配合 -c shell_environment_policy.inherit=all 透传)。
+    if let Some(vbin) = crate::pyenv::venv_bin_if_ready() {
+        let path = std::env::var("PATH").unwrap_or_default();
+        cmd.env("PATH", format!("{vbin}:{path}"));
+    }
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
     // SPIKE-H:stdin 必须给 EOF。无 context → null(立即 EOF);有 context → piped,写完即 drop。

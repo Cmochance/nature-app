@@ -1,4 +1,5 @@
 mod engine;
+mod pyenv;
 mod skills;
 
 use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
@@ -15,6 +16,18 @@ fn list_skills() -> Vec<SkillDescriptor> {
 #[tauri::command]
 fn install_skills() -> Result<usize, String> {
     skills::install_skills(&skills::skills_root())
+}
+
+/// uv 隔离 Python 环境状态。
+#[tauri::command]
+fn check_pyenv() -> pyenv::PyEnvStatus {
+    pyenv::status()
+}
+
+/// 手动准备(创建+装包)uv 隔离 Python 环境。
+#[tauri::command]
+fn prepare_pyenv() -> Result<(), String> {
+    pyenv::ensure_pyenv()
 }
 
 /// 启动一个 skill 任务,流式事件经 `on_event` Channel 推回前端,返回 task_id。
@@ -55,6 +68,11 @@ pub fn run() {
                     Err(e) => eprintln!("[nature-app] skills install failed: {e}"),
                 }
             });
+            // 后台自举 uv 隔离 Python 环境(首次下载 wheels 较慢;未就绪时 engine 回落系统 python)。
+            std::thread::spawn(|| match pyenv::ensure_pyenv() {
+                Ok(()) => eprintln!("[nature-app] pyenv ready"),
+                Err(e) => eprintln!("[nature-app] pyenv setup skipped: {e}"),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -62,7 +80,9 @@ pub fn run() {
             cancel_task,
             check_engine,
             list_skills,
-            install_skills
+            install_skills,
+            check_pyenv,
+            prepare_pyenv
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
