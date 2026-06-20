@@ -11,6 +11,12 @@ fn list_skills() -> Vec<SkillDescriptor> {
     skills::load_skills(&skills::skills_root())
 }
 
+/// 手动把 bundled skills 同步到 codex skills 目录(用于"检查上游更新")。
+#[tauri::command]
+fn install_skills() -> Result<usize, String> {
+    skills::install_skills(&skills::skills_root())
+}
+
 /// 启动一个 skill 任务,流式事件经 `on_event` Channel 推回前端,返回 task_id。
 #[tauri::command]
 fn run_skill_task(
@@ -41,11 +47,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(EngineState::default())
+        .setup(|_app| {
+            // 启动后台同步 bundled skills 到 ~/.codex/skills/(幂等,首启拷贝不阻塞窗口)。
+            std::thread::spawn(|| {
+                match skills::install_skills(&skills::skills_root()) {
+                    Ok(n) => eprintln!("[nature-app] skills synced: {n} dir(s)"),
+                    Err(e) => eprintln!("[nature-app] skills install failed: {e}"),
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             run_skill_task,
             cancel_task,
             check_engine,
-            list_skills
+            list_skills,
+            install_skills
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

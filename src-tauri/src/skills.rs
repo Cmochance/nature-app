@@ -214,6 +214,62 @@ pub fn load_skills(root: &Path) -> Vec<SkillDescriptor> {
     dirs.iter().filter_map(|d| parse_skill(d)).collect()
 }
 
+/// 安装/同步 bundled skills 到 codex 可读的 `~/.codex/skills/`,使 codex 能原生加载
+/// nature-* 技能(SPIKE-C/D 已验证 codex 从该目录隐式/显式触发 skill)。
+/// 幂等:marker 记录 pinned commit,未变则跳过(返回 0)。
+pub fn install_skills(bundled_root: &Path) -> Result<usize, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME 未设置".to_string())?;
+    let codex_skills = PathBuf::from(&home).join(".codex").join("skills");
+    std::fs::create_dir_all(&codex_skills).map_err(|e| e.to_string())?;
+
+    let pin = std::fs::read_to_string(bundled_root.join(".pinned"))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let marker = codex_skills.join(".nature-app-installed");
+    let installed = std::fs::read_to_string(&marker)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if !pin.is_empty() && pin == installed {
+        return Ok(0); // 已是最新,跳过
+    }
+
+    let mut n = 0;
+    for entry in std::fs::read_dir(bundled_root)
+        .map_err(|e| e.to_string())?
+        .flatten()
+    {
+        let name = entry.file_name();
+        let ns = name.to_string_lossy().to_string();
+        // 只装 _shared 与 nature-*;不碰用户已有的其它 skill
+        if entry.path().is_dir() && (ns == "_shared" || ns.starts_with("nature-")) {
+            let dst = codex_skills.join(&name);
+            let _ = std::fs::remove_dir_all(&dst);
+            copy_dir_all(&entry.path(), &dst).map_err(|e| format!("copy {ns}: {e}"))?;
+            n += 1;
+        }
+    }
+    std::fs::write(&marker, &pin).ok();
+    Ok(n)
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dest)?;
+        } else if ty.is_file() {
+            std::fs::copy(entry.path(), &dest)?;
+        }
+        // 跳过符号链接
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { invoke, Channel, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { DomainEvent, EngineStatus, TaskSpec } from "./types/engine";
+import type { SkillDescriptor } from "./types/skill";
+import DynamicForm, { type DynamicFormResult } from "./components/DynamicForm";
 import "./App.css";
-
-const DEFAULT_INSTRUCTION =
-  "用 matplotlib 画一张柱状图(示例数据:A=3, B=5, C=2, D=4),应用简洁的发表级样式,保存为 chart.png 到当前工作目录。完成后只回一句确认,不要多余解释。";
 
 interface LogLine {
   t: string;
@@ -13,23 +12,93 @@ interface LogLine {
   cls?: string;
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  stable: "Stable",
+  beta: "Beta",
+  draft: "Draft",
+};
+
 function isImage(path: string) {
   return /\.(png|svg|jpg|jpeg|gif|webp)$/i.test(path);
 }
 
-function App() {
+export default function App() {
   const [engine, setEngine] = useState<EngineStatus | null>(null);
-  const [workdir, setWorkdir] = useState<string>("");
-  const [instruction, setInstruction] = useState<string>(DEFAULT_INSTRUCTION);
-  const [needsNetwork, setNeedsNetwork] = useState<boolean>(true);
-  const [running, setRunning] = useState<boolean>(false);
-  const [log, setLog] = useState<LogLine[]>([]);
-  const [artifacts, setArtifacts] = useState<string[]>([]);
-  const taskIdRef = useRef<string | null>(null);
+  const [skills, setSkills] = useState<SkillDescriptor[]>([]);
+  const [selected, setSelected] = useState<SkillDescriptor | null>(null);
 
   useEffect(() => {
     invoke<EngineStatus>("check_engine").then(setEngine).catch(() => setEngine(null));
+    invoke<SkillDescriptor[]>("list_skills").then(setSkills).catch(() => setSkills([]));
   }, []);
+
+  return (
+    <main className="app">
+      <header className="topbar">
+        <h1 onClick={() => setSelected(null)} style={{ cursor: "pointer" }}>
+          Nature App <span className="tag">M1</span>
+        </h1>
+        <div className="engine">
+          {engine ? (
+            <>
+              <span className={engine.loggedIn ? "ok" : "err"}>
+                {engine.loggedIn ? "● 已登录" : "○ 未登录"}
+              </span>
+              <span className="dim">{engine.version ?? "codex 未知"}</span>
+            </>
+          ) : (
+            <span className="dim">检测引擎中…</span>
+          )}
+        </div>
+      </header>
+
+      {selected ? (
+        <RunView skill={selected} onBack={() => setSelected(null)} />
+      ) : (
+        <Catalog skills={skills} onPick={setSelected} />
+      )}
+    </main>
+  );
+}
+
+function Catalog({
+  skills,
+  onPick,
+}: {
+  skills: SkillDescriptor[];
+  onPick: (s: SkillDescriptor) => void;
+}) {
+  return (
+    <section className="catalog">
+      <p className="catalog-hint">选择一个科研 skill（共 {skills.length} 个）</p>
+      <div className="cards">
+        {skills.map((s) => (
+          <button key={s.id} className="card" onClick={() => onPick(s)}>
+            <div className="card-head">
+              <span className="card-name">{s.id}</span>
+              <span className={"badge " + s.status}>{STATUS_LABEL[s.status] ?? s.status}</span>
+            </div>
+            <p className="card-desc">{s.description}</p>
+            <div className="card-foot">
+              <span className="cap">{s.formCapability}</span>
+              {s.axes.length > 0 && <span className="cap">{s.axes.length} 轴</span>}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void }) {
+  const [workdir, setWorkdir] = useState("");
+  const [files, setFiles] = useState<string[]>([]);
+  const [form, setForm] = useState<DynamicFormResult>({ instruction: "", valid: false });
+  const [needsNetwork, setNeedsNetwork] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [log, setLog] = useState<LogLine[]>([]);
+  const [artifacts, setArtifacts] = useState<string[]>([]);
+  const taskIdRef = useRef<string | null>(null);
 
   function push(text: string, cls?: string) {
     setLog((prev) => [...prev, { t: new Date().toLocaleTimeString(), text, cls }]);
@@ -40,11 +109,14 @@ function App() {
     if (typeof dir === "string") setWorkdir(dir);
   }
 
+  async function pickFiles() {
+    const f = await open({ multiple: true, title: "选择输入文件" });
+    if (Array.isArray(f)) setFiles(f as string[]);
+    else if (typeof f === "string") setFiles([f]);
+  }
+
   async function run() {
-    if (!workdir) {
-      push("请先选择工作目录", "err");
-      return;
-    }
+    if (!workdir || !form.valid) return;
     setLog([]);
     setArtifacts([]);
     setRunning(true);
@@ -89,17 +161,14 @@ function App() {
           push(`[raw:${ev.codexType}]`, "dim");
           break;
         case "finished":
-          push(
-            `— 结束:${ev.outcome}(exit=${ev.exitCode ?? "?"})—`,
-            ev.outcome === "success" ? "ok" : "err"
-          );
+          push(`— 结束:${ev.outcome}(exit=${ev.exitCode ?? "?"})—`, ev.outcome === "success" ? "ok" : "err");
           setRunning(false);
           break;
       }
     };
 
     const spec: TaskSpec = {
-      instruction,
+      instruction: form.instruction,
       workdir,
       sandboxTier: "workspaceWrite",
       needsNetwork,
@@ -121,48 +190,35 @@ function App() {
   }
 
   return (
-    <main className="app">
-      <header className="topbar">
-        <h1>Nature App <span className="tag">M0</span></h1>
-        <div className="engine">
-          {engine ? (
-            <>
-              <span className={engine.loggedIn ? "ok" : "err"}>
-                {engine.loggedIn ? "● 已登录" : "○ 未登录"}
-              </span>
-              <span className="dim">{engine.version ?? "codex 未知版本"}</span>
-            </>
-          ) : (
-            <span className="dim">检测引擎中…</span>
-          )}
-        </div>
-      </header>
+    <section className="runview">
+      <div className="run-head">
+        <button className="link" onClick={onBack}>← 返回目录</button>
+        <span className="run-title">{skill.id}</span>
+        <span className={"badge " + skill.status}>{STATUS_LABEL[skill.status] ?? skill.status}</span>
+      </div>
 
       <section className="form">
         <div className="row">
-          <button onClick={pickWorkdir}>选择工作目录</button>
+          <button onClick={pickWorkdir}>工作目录</button>
           <code className="path">{workdir || "(未选择)"}</code>
         </div>
-        <textarea
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
-          rows={4}
-          placeholder="给 codex 的绘图指令…"
-        />
+        <div className="row">
+          <button onClick={pickFiles}>输入文件</button>
+          <code className="path">{files.length ? `${files.length} 个文件` : "(可选)"}</code>
+        </div>
+
+        <DynamicForm skill={skill} files={files} onChange={setForm} />
+
         <div className="row">
           <label>
-            <input
-              type="checkbox"
-              checked={needsNetwork}
-              onChange={(e) => setNeedsNetwork(e.target.checked)}
-            />
-            允许联网(缺包时可 pip 安装)
+            <input type="checkbox" checked={needsNetwork} onChange={(e) => setNeedsNetwork(e.target.checked)} />
+            允许联网
           </label>
           <div className="spacer" />
           {running ? (
             <button className="danger" onClick={cancel}>取消</button>
           ) : (
-            <button className="primary" onClick={run} disabled={!workdir}>运行</button>
+            <button className="primary" onClick={run} disabled={!workdir || !form.valid}>运行</button>
           )}
         </div>
       </section>
@@ -178,7 +234,7 @@ function App() {
           ))}
         </div>
         <div className="artifacts">
-          {artifacts.length === 0 && <div className="dim">产物图片会显示在这里…</div>}
+          {artifacts.length === 0 && <div className="dim">产物会显示在这里…</div>}
           {artifacts.map((p) => (
             <figure key={p}>
               <img src={convertFileSrc(p)} alt={p} />
@@ -187,8 +243,6 @@ function App() {
           ))}
         </div>
       </section>
-    </main>
+    </section>
   );
 }
-
-export default App;
