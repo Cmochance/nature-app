@@ -286,3 +286,61 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 /* ---- figure 再改一版 ---- */
 .refine { border-top: 1px dashed #d6d6da; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .refine-input { flex: 1; font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; }
+
+/* ---- 图表微调编辑器 (ChartEditor) ---- */
+.chart-editor { display: flex; flex-direction: column; height: 100%; gap: 8px; overflow: hidden; }
+.ce-header { display: flex; align-items: center; gap: 10px; }
+.ce-header h2 { font-size: 16px; margin: 0; }
+.ce-status { font-size: 12px; color: #888; }
+.ce-status.loading { color: #0f4d92; font-weight: 600; }
+.ce-body { display: flex; gap: 12px; flex: 1; min-height: 0; }
+.ce-params { width: 400px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px; }
+.ce-preview {
+  flex: 1; min-width: 0; background: #fff; border: 1px solid #c4c4c6;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; padding: 16px;
+}
+.ce-preview-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ce-placeholder { color: #aaa; font-size: 14px; }
+.ce-error { color: #b64342; font-size: 13px; background: #fef2f2; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+
+/* 参数面板分区 */
+.ce-section { background: #fff; border: 1px solid #e0e0e4; border-radius: 10px; overflow: hidden; }
+.ce-section > summary { cursor: pointer; padding: 8px 12px; font-size: 13px; font-weight: 600; user-select: none; background: #f5f5f7; }
+.ce-section-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+/* 字段 */
+.ce-field { display: flex; flex-direction: column; gap: 3px; }
+.ce-field-label { font-size: 11px; color: #888; }
+.ce-field input, .ce-field select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; }
+.ce-row { display: flex; gap: 8px; }
+.ce-row .ce-field { flex: 1; }
+.ce-check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+
+/* 颜色选择器 */
+.ce-color { display: flex; align-items: center; gap: 6px; }
+.ce-swatches { display: flex; gap: 3px; flex-wrap: wrap; }
+.ce-swatch { width: 18px; height: 18px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.ce-swatch.on { border-color: #0f4d92; }
+.ce-color-input { width: 28px; height: 28px; border: 1px solid #ccc; border-radius: 6px; padding: 0; cursor: pointer; }
+.ce-color-text { width: 70px; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 6px; }
+
+/* 序列块 */
+.ce-series { border: 1px solid #e8e8ec; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ce-series-head { display: flex; align-items: center; gap: 6px; }
+.ce-series-name { flex: 1; font: inherit; font-size: 13px; font-weight: 600; padding: 3px 6px; border: 1px solid #ddd; border-radius: 6px; }
+
+/* 微调入口按钮 */
+.ce-entry { display: flex; gap: 8px; align-items: center; }
+.ce-entry-hint { font-size: 11px; color: #888; }
+button.ce-launch { background: #0f4d92; color: #fff; border: 1px solid #0f4d92; font-size: 13px; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+button.ce-launch:hover { background: #0a3d75; }
+
+/* 热图矩阵编辑器 */
+.ce-matrix-toolbar { display: flex; align-items: center; gap: 6px; }
+.ce-matrix-size { font-size: 11px; color: #888; }
+.ce-matrix-toolbar button { font-size: 11px; padding: 2px 8px; }
+.ce-matrix { overflow-x: auto; display: flex; flex-direction: column; gap: 2px; }
+.ce-matrix-row { display: flex; gap: 2px; }
+.ce-matrix-cell { width: 42px; font-size: 11px; padding: 3px 4px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; }

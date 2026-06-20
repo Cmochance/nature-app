@@ -40,7 +40,7 @@ pub fn pyenv_dir() -> PathBuf {
         .join("pyenv")
 }
 
-fn venv_python() -> PathBuf {
+pub fn venv_python() -> PathBuf {
     pyenv_dir().join("bin").join("python")
 }
 

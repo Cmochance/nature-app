@@ -28,6 +28,58 @@ def save_pub_py(fig, filename, dpi=600):
 
 Use `text.usetex = True` only when LaTeX is installed and math-rich labels are required.
 
+## Export plot parameters (mandatory)
+
+Every figure script must also emit `plot_spec.json` and `plot_data.json` alongside the rendered image. These two files let the Nature App chart editor adjust visual details (colors, fonts, line widths, axis ranges, legend, spines) in real time via local matplotlib re-rendering — no LLM round-trip needed.
+
+```python
+import json
+
+def export_plot_params(spec: dict, data: dict, prefix: str = ""):
+    """Export structured parameters for the Nature App chart editor."""
+    with open(f"{prefix}plot_spec.json", "w", encoding="utf-8") as f:
+        json.dump(spec, f, ensure_ascii=False, indent=2)
+    with open(f"{prefix}plot_data.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+```
+
+Call `export_plot_params(spec, data)` at the end of the script, right before or after `save_pub_py`. The `spec` and `data` dicts must follow this schema (camelCase keys are optional in the Python dict; the editor reads snake_case as shown):
+
+**`plot_spec` — all visual parameters that can be fine-tuned:**
+
+```json
+{
+  "schema_version": 1,
+  "chart_type": "line",
+  "title": "Figure title",
+  "x_label": "Time", "y_label": "Absorbance",
+  "x_unit": "s", "y_unit": "a.u.",
+  "style": {
+    "figure_size": [8, 5], "dpi": 150,
+    "font_family": "serif", "font_size": 12,
+    "grid": true, "grid_alpha": 0.3,
+    "legend": {"enabled": true, "location": "best"},
+    "spines": {"enabled": true, "width": 1.2, "color": "#333333"}
+  }
+}
+```
+
+**`plot_data` — the actual plotted series:**
+
+```json
+{
+  "schema_version": 1,
+  "series": [
+    {"name": "Sample A", "x": [0, 1, 2, 3], "y": [0.1, 0.5, 0.8, 0.3],
+     "color": "#1a1a1a", "line_width": 2.0, "visible": true},
+    {"name": "Sample B", "x": [0, 1, 2, 3], "y": [0.2, 0.6, 0.9, 0.4],
+     "color": "#c73e3a", "line_width": 1.5, "visible": true}
+  ]
+}
+```
+
+Set `chart_type` to `"line"`, `"bar"`, `"heatmap"`, or `"line_dual_y"` so the editor loads the correct render template. Extract `x` and `y` arrays from the same data you plotted. If a panel has many series, include only the major ones (the editor is for style fine-tuning, not data exploration). For multi-panel figures, export the parameters of the primary panel.
+
 ## Going deeper
 
 - `references/api.md` — Python PALETTE, helper function signatures, validation rules.
