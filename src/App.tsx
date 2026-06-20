@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke, Channel, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { DomainEvent, EngineStatus, TaskSpec } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
 import DynamicForm, { type DynamicFormResult } from "./components/DynamicForm";
+import ArtifactPreview from "./components/ArtifactPreview";
 import "./App.css";
 
 interface LogLine {
@@ -17,10 +18,6 @@ const STATUS_LABEL: Record<string, string> = {
   beta: "Beta",
   draft: "Draft",
 };
-
-function isImage(path: string) {
-  return /\.(png|svg|jpg|jpeg|gif|webp)$/i.test(path);
-}
 
 export default function App() {
   const [engine, setEngine] = useState<EngineStatus | null>(null);
@@ -98,6 +95,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
   const [artifacts, setArtifacts] = useState<string[]>([]);
+  const [result, setResult] = useState<string | null>(null);
   const taskIdRef = useRef<string | null>(null);
 
   function push(text: string, cls?: string) {
@@ -119,6 +117,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
     if (!workdir || !form.valid) return;
     setLog([]);
     setArtifacts([]);
+    setResult(null);
     setRunning(true);
     taskIdRef.current = null;
 
@@ -143,10 +142,11 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
           break;
         case "assistantMessage":
           push(ev.text, "msg");
+          setResult(ev.text); // 保留最后一条作为最终结果
           break;
         case "artifact":
           push(`[产物 ${ev.changeKind}] ${ev.path}`, "ok");
-          if (isImage(ev.path)) setArtifacts((p) => (p.includes(ev.path) ? p : [...p, ev.path]));
+          setArtifacts((p) => (p.includes(ev.path) ? p : [...p, ev.path]));
           break;
         case "turnCompleted":
           push(
@@ -234,13 +234,7 @@ function RunView({ skill, onBack }: { skill: SkillDescriptor; onBack: () => void
           ))}
         </div>
         <div className="artifacts">
-          {artifacts.length === 0 && <div className="dim">产物会显示在这里…</div>}
-          {artifacts.map((p) => (
-            <figure key={p}>
-              <img src={convertFileSrc(p)} alt={p} />
-              <figcaption>{p.split("/").pop()}</figcaption>
-            </figure>
-          ))}
+          <ArtifactPreview result={result} artifacts={artifacts} />
         </div>
       </section>
     </section>

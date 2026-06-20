@@ -181,3 +181,28 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 .chip.on { background: #0f4d92; color: #fff; border-color: #0f4d92; }
 .chip.disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
 .fallback-note { font-size: 12px; color: #777; background: #f7f7f9; padding: 8px 10px; border-radius: 8px; }
+
+/* ---- 产物预览 ---- */
+.preview { display: flex; flex-direction: column; gap: 12px; }
+.result-card { border: 1px solid #d6e2f0; border-radius: 10px; overflow: hidden; }
+.result-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f4d92;
+  background: #eef4fb;
+  padding: 6px 12px;
+}
+.md { padding: 4px 14px; font-size: 13px; line-height: 1.6; color: #222; }
+.md :first-child { margin-top: 6px; }
+.md pre { background: #f5f5f7; padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; }
+.md code { background: #f0f0f2; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.md pre code { background: none; padding: 0; }
+.md table { border-collapse: collapse; font-size: 12px; }
+.md th, .md td { border: 1px solid #ddd; padding: 4px 8px; }
+.art { border: 1px solid #e2e2e6; border-radius: 8px; padding: 8px 10px; }
+.art > summary { font-size: 12px; font-weight: 600; cursor: pointer; color: #333; }
+.art img { max-width: 100%; border-radius: 6px; }
+.art figcaption { font-size: 11px; color: #666; margin-top: 4px; }
+.art .code { font-size: 11px; max-height: 280px; overflow: auto; background: #f5f5f7; padding: 8px; border-radius: 6px; }
+.file-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.file-row .fname { font-size: 12px; }
