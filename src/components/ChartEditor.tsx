@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { previewPlot, toDataUrl, COLOR_PRESETS } from "../api/plotApi";
-import type { PlotSpec, PlotStyle, PlotData, PlotSeries } from "../types/plot";
+import type { PlotSpec, PlotStyle, PlotData, PlotSeries, PlotGrid } from "../types/plot";
+import { CMAP_PRESETS } from "../types/plot";
 
 const CHART_TYPES = [
   { value: "line", label: "折线图 Line" },
@@ -78,6 +79,21 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
     setSpec((p) => ({ ...p, style: { ...p.style, ...patch } }));
   const updateSeries = (i: number, patch: Partial<PlotSeries>) =>
     setData((p) => ({ ...p, series: p.series.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) }));
+  const updateGrid = (patch: Partial<PlotGrid>) =>
+    setData((p) => ({ ...p, grid: { ...p.grid, mode: "heatmap", ...patch } }));
+  // 确保 heatmap 切入时有默认 grid 数据
+  const grid: PlotGrid = data.grid ?? { mode: "heatmap", values: [[1, 2, 3], [4, 5, 6], [7, 8, 9]], cmap: "viridis", origin: "lower" };
+  const matrix: number[][] = grid.values ?? [];
+  const setCell = (r: number, c: number, v: number) => {
+    const next = matrix.map((row) => [...row]);
+    if (next[r]) next[r][c] = v;
+    updateGrid({ values: next });
+  };
+  const addRow = () => updateGrid({ values: [...matrix, Array(matrix[0]?.length ?? 3).fill(0)] });
+  const delRow = () => updateGrid({ values: matrix.slice(0, -1) });
+  const addCol = () => updateGrid({ values: matrix.map((row) => [...row, 0]) });
+  const delCol = () => updateGrid({ values: matrix.map((row) => row.slice(0, -1)) });
+
 
   // 防抖预览:参数变化 → 400ms → 本地渲染
   useEffect(() => {
@@ -88,8 +104,13 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
       payloadRef.current = payload;
       setLoading(true);
       setError(null);
+      // heatmap 切入时如果 data.grid 不存在,注入默认矩阵
+      const renderData =
+        chartType === "heatmap" && !data.grid
+          ? { ...data, grid: { mode: "heatmap" as const, values: [[1, 2, 3], [4, 5, 6], [7, 8, 9]], cmap: "viridis", origin: "lower" as const } }
+          : data;
       try {
-        const resp = await previewPlot(chartType, spec, data, "svg");
+        const resp = await previewPlot(chartType, spec, renderData, "svg");
         setPreviewUrl(toDataUrl(resp.imageFormat, resp.imageBase64));
       } catch (e) {
         setError(String(e));
@@ -103,7 +124,11 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
 
   async function exportChart(fmt: "svg" | "png") {
     try {
-      const resp = await previewPlot(chartType, spec, data, fmt);
+      const renderData =
+        chartType === "heatmap" && !data.grid
+          ? { ...data, grid: { mode: "heatmap" as const, values: [[1, 2, 3], [4, 5, 6], [7, 8, 9]], cmap: "viridis", origin: "lower" as const } }
+          : data;
+      const resp = await previewPlot(chartType, spec, renderData, fmt);
       const url = toDataUrl(resp.imageFormat, resp.imageBase64);
       const a = document.createElement("a");
       a.href = url;
@@ -246,6 +271,51 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
             ))}
             {series.length === 0 && <p className="dim small">无数据序列。</p>}
           </Section>
+
+          {chartType === "heatmap" && (
+            <Section title="热图矩阵">
+              <div className="ce-row">
+                <Field label="Colormap">
+                  <select value={grid.cmap ?? "viridis"} onChange={(e) => updateGrid({ cmap: e.target.value })}>
+                    {CMAP_PRESETS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="原点">
+                  <select value={grid.origin ?? "lower"} onChange={(e) => updateGrid({ origin: e.target.value as "upper" | "lower" })}>
+                    <option value="lower">lower(左下)</option>
+                    <option value="upper">upper(左上)</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Colorbar 标签">
+                <input type="text" value={grid.z_label ?? ""} onChange={(e) => updateGrid({ z_label: e.target.value })} placeholder="Intensity" />
+              </Field>
+              <div className="ce-matrix-toolbar">
+                <span className="ce-matrix-size">{matrix.length}行 × {matrix[0]?.length ?? 0}列</span>
+                <div className="spacer" />
+                <button onClick={addRow}>+ 行</button>
+                <button onClick={delRow} disabled={matrix.length <= 1}>- 行</button>
+                <button onClick={addCol}>+ 列</button>
+                <button onClick={delCol} disabled={(matrix[0]?.length ?? 0) <= 1}>- 列</button>
+              </div>
+              <div className="ce-matrix">
+                {matrix.map((row, r) => (
+                  <div key={r} className="ce-matrix-row">
+                    {row.map((val, c) => (
+                      <input
+                        key={c}
+                        type="number"
+                        className="ce-matrix-cell"
+                        value={val}
+                        step="0.1"
+                        onChange={(e) => setCell(r, c, +e.target.value)}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* ── 右侧预览 ── */}

@@ -335,3 +335,12 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 .ce-entry-hint { font-size: 11px; color: #888; }
 button.ce-launch { background: #0f4d92; color: #fff; border: 1px solid #0f4d92; font-size: 13px; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
 button.ce-launch:hover { background: #0a3d75; }
+
+/* 热图矩阵编辑器 */
+.ce-matrix-toolbar { display: flex; align-items: center; gap: 6px; }
+.ce-matrix-size { font-size: 11px; color: #888; }
+.ce-matrix-toolbar button { font-size: 11px; padding: 2px 8px; }
+.ce-matrix { overflow-x: auto; display: flex; flex-direction: column; gap: 2px; }
+.ce-matrix-row { display: flex; gap: 2px; }
+.ce-matrix-cell { width: 42px; font-size: 11px; padding: 3px 4px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; }

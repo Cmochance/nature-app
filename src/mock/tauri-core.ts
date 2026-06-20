@@ -59,6 +59,38 @@ function mockPlotSvg(plotSpec: Record<string, unknown>, plotData: Record<string,
   const yMap = (v: number) => h - pad - ((v - yMin) / yRange) * (h - 2 * pad);
 
   let shapes = "";
+  if (chartType === "heatmap") {
+    const grid = (plotData.grid as Record<string, unknown>) ?? {};
+    const values = (grid.values as number[][]) ?? [];
+    // 简化 colormap:用 viridis 近似色阶
+    const viridis: [number, number, number][] = [
+      [68, 1, 84], [72, 36, 117], [64, 67, 136], [52, 94, 141], [41, 120, 142],
+      [32, 144, 140], [34, 167, 132], [68, 190, 112], [121, 209, 81], [189, 222, 38], [253, 231, 36],
+    ];
+    const pick = (t: number): string => {
+      const idx = Math.max(0, Math.min(viridis.length - 1, Math.floor(t * (viridis.length - 1))));
+      const [r, g, b] = viridis[idx];
+      return `rgb(${r},${g},${b})`;
+    };
+    const rows = values.length;
+    const cols = values[0]?.length ?? 0;
+    if (rows > 0 && cols > 0) {
+      const allV = values.flat();
+      const vMin = Math.min(...allV);
+      const vMax = Math.max(...allV);
+      const vRange = vMax - vMin || 1;
+      const cw = (w - 2 * pad) / cols;
+      const ch = (h - 2 * pad) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const t = (values[r][c] - vMin) / vRange;
+          shapes += `<rect x="${pad + c * cw}" y="${pad + r * ch}" width="${cw}" height="${ch}" fill="${pick(t)}" stroke="#fff" stroke-width="0.3"/>`;
+        }
+      }
+    }
+    const zLabel = String((grid as Record<string, unknown>).z_label ?? "");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#fff"/>${title ? `<text x="${w / 2}" y="22" text-anchor="middle" font-family="${fontFamily}" font-size="${fontSize + 2}" font-weight="bold" fill="#1c1c1e">${title}</text>` : ""}${shapes}<text x="${w / 2}" y="${h - 8}" text-anchor="middle" font-family="${fontFamily}" font-size="${fontSize - 1}" fill="#666">${String(plotSpec.x_label ?? "")}</text><text x="14" y="${h / 2}" text-anchor="middle" font-family="${fontFamily}" font-size="${fontSize - 1}" fill="#666" transform="rotate(-90 14 ${h / 2})">${String(plotSpec.y_label ?? "")}</text>${zLabel ? `<text x="${w - 12}" y="${h / 2}" text-anchor="middle" font-family="${fontFamily}" font-size="${fontSize - 1}" fill="#666" transform="rotate(90 ${w - 12} ${h / 2})">${zLabel}</text>` : ""}</svg>`;
+  }
   for (const s of series) {
     if (s.visible === false) continue;
     const xs = (s.x as number[]) ?? [];

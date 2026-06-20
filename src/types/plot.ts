@@ -15,7 +15,17 @@ export interface PlotSeries {
 export interface PlotData {
   schema_version?: number;
   series: PlotSeries[];
-  grid?: Record<string, unknown>;
+  grid?: PlotGrid;
+}
+
+/** 热图网格数据。 */
+export interface PlotGrid {
+  mode?: "heatmap" | "image";
+  values?: number[][];
+  cmap?: string;
+  origin?: "upper" | "lower";
+  z_label?: string;
+  png_base64?: string;
 }
 
 /** 图表全局样式。 */
@@ -64,3 +74,10 @@ export interface PreviewResponse {
   imageFormat: string;
   warnings: unknown[];
 }
+
+/** 常用 matplotlib colormap。 */
+export const CMAP_PRESETS = [
+  "viridis", "plasma", "inferno", "magma", "cividis",
+  "coolwarm", "RdBu", "bwr", "seismic", "jet",
+  "Blues", "Reds", "Greens", "Greys", "hot", "rainbow",
+];
