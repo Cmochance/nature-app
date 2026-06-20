@@ -228,3 +228,29 @@ button.danger { background: #b64342; color: #fff; border-color: #b64342; }
 .prep { margin-top: 8px; }
 .danger-toggle { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
 .danger-toggle .warn { color: #b64342; font-weight: 600; }
+
+/* ---- chart-atlas 选图器 ---- */
+.atlas > summary { font-size: 12px; font-weight: 600; color: #333; cursor: pointer; }
+.atlas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.atlas-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #d6d6da;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 11px;
+}
+.atlas-item img { width: 100%; height: 60px; object-fit: contain; }
+.atlas-item.on { border-color: #0f4d92; background: #eef4fb; }
+
+/* ---- figure 再改一版 ---- */
+.refine { border-top: 1px dashed #d6d6da; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.refine-input { flex: 1; font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; }

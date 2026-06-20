@@ -217,7 +217,8 @@ figure 再改一版=新 run,`parentRunId` 串版本树。全本地、零遥测�
   - ✅ **macOS 已达成核心**(2026-06-20):11 skill 全部解析+目录展示(13 单测);DynamicForm 三档驱动;codex 原生调起;uv venv(3.13)就绪。**端到端 GUI 实测 2/11**——nature-polishing(文本→markdown 结果)与 nature-figure(python→png+svg,经 uv 不崩),代表"文本产出"与"图像+python 产出"两类;其余 9 个共用同一通用 runner,可后续快速逐一扫一遍补全
   - ⏳ 待补:其余 9 skill 的逐一 GUI 冒烟;Windows;`item.updated`/`todo_list` 事件目前降级为 Raw(M2 可加进度渲染)
 
-### M2 — figure 精修 + 环境体检
+### M2 — figure 精修 + 环境体检 ✅(代码完成 2026-06-20)
+> figure 再改一版回灌 + chart-atlas 选图器 + 环境体检面板(codex/uv/系统二进制)+ 沙箱高级开关(二次确认)+ token 累计。cargo check + 前端 build 全绿;待 GUI 冒烟。
 - [FE] figure 精修视图(代码/图并排 + 再改一版回灌 + 版本树 + chart-atlas 选图 + PALETTE 约束)
 - [RS/FE] 环境体检面板(codex 登录/版本、uv venv、python 包、libreoffice/pandoc/pdflatex)
 - [RS/FE] 沙箱"高级全放开"开关 + 二次确认 + 持久警示

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke, Channel } from "@tauri-apps/api/core";
+import { invoke, Channel, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { DomainEvent, EngineStatus, TaskSpec } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
 import DynamicForm, { type DynamicFormResult } from "./components/DynamicForm";
@@ -19,6 +20,50 @@ const STATUS_LABEL: Record<string, string> = {
   beta: "Beta",
   draft: "Draft",
 };
+
+// chart-atlas 10 类图型(bundled assets/chart-atlas/*.png)
+const CHART_ATLAS: { file: string; label: string }[] = [
+  { file: "atlas-01-bar-charts.png", label: "bar 柱状" },
+  { file: "atlas-02-line-trends.png", label: "line 趋势" },
+  { file: "atlas-03-heatmaps.png", label: "heatmap 热图" },
+  { file: "atlas-04-scatter-bubble.png", label: "scatter 散点" },
+  { file: "atlas-05-radar-polar.png", label: "radar 雷达" },
+  { file: "atlas-06-distributions.png", label: "distribution 分布" },
+  { file: "atlas-07-forest-interval.png", label: "forest 森林" },
+  { file: "atlas-08-area-stacked.png", label: "area 堆叠" },
+  { file: "atlas-09-image-plates.png", label: "image 图板" },
+  { file: "atlas-10-network-matrix.png", label: "network 网络" },
+];
+
+function ChartAtlas({
+  skillDir,
+  selected,
+  onSelect,
+}: {
+  skillDir: string;
+  selected: string | null;
+  onSelect: (label: string | null) => void;
+}) {
+  return (
+    <details className="atlas">
+      <summary>chart-atlas 选图型(可选,引导绘图){selected && ` · 已选:${selected}`}</summary>
+      <div className="atlas-grid">
+        {CHART_ATLAS.map((a) => (
+          <button
+            key={a.file}
+            type="button"
+            className={"atlas-item" + (selected === a.label ? " on" : "")}
+            onClick={() => onSelect(selected === a.label ? null : a.label)}
+            title={a.label}
+          >
+            <img src={convertFileSrc(`${skillDir}/assets/chart-atlas/${a.file}`)} alt={a.label} />
+            <span>{a.label}</span>
+          </button>
+        ))}
+      </div>
+    </details>
+  );
+}
 
 export default function App() {
   const [engine, setEngine] = useState<EngineStatus | null>(null);
@@ -122,7 +167,13 @@ function RunView({
   const [artifacts, setArtifacts] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
   const [tokens, setTokens] = useState({ in: 0, out: 0 });
+  const [chartHint, setChartHint] = useState<string | null>(null);
+  const [refineInput, setRefineInput] = useState("");
   const taskIdRef = useRef<string | null>(null);
+
+  const isFigure = skill.id === "nature-figure";
+  // 最近一次生成的绘图脚本(用于"再改一版"回灌)
+  const lastPy = [...artifacts].reverse().find((p) => p.endsWith(".py")) || null;
 
   function push(text: string, cls?: string) {
     setLog((prev) => [...prev, { t: new Date().toLocaleTimeString(), text, cls }]);
@@ -139,8 +190,8 @@ function RunView({
     else if (typeof f === "string") setFiles([f]);
   }
 
-  async function run() {
-    if (!workdir || !form.valid) return;
+  async function launch(instruction: string) {
+    if (!workdir) return;
     setLog([]);
     setArtifacts([]);
     setResult(null);
@@ -199,7 +250,7 @@ function RunView({
     };
 
     const spec: TaskSpec = {
-      instruction: form.instruction,
+      instruction,
       workdir,
       sandboxTier: dangerSandbox ? "dangerFullAccess" : "workspaceWrite",
       needsNetwork,
@@ -211,6 +262,34 @@ function RunView({
       push("启动失败:" + String(e), "err");
       setRunning(false);
     }
+  }
+
+  function run() {
+    if (!form.valid) return;
+    const hint = isFigure && chartHint ? `\n参考图型(chart-atlas):${chartHint}` : "";
+    launch(form.instruction + hint);
+  }
+
+  // figure"再改一版":读上一版脚本 + 新要求,重跑生成新版本
+  async function refine() {
+    if (!lastPy || !refineInput.trim()) return;
+    let code = "";
+    try {
+      code = await readTextFile(lastPy);
+    } catch {
+      /* 读不到脚本就只带要求 */
+    }
+    const v = artifacts.filter((p) => /chart(_v\d+)?\.png$/i.test(p)).length + 1;
+    const instr = [
+      `请使用技能「nature-figure」。这是当前的绘图脚本(${lastPy.split("/").pop()}):`,
+      "```python",
+      code,
+      "```",
+      `请按以下修改重新生成图,并把新版本保存为 chart_v${v}.png 和 chart_v${v}.svg 到当前工作目录(保留旧版本不要覆盖):`,
+      refineInput.trim(),
+    ].join("\n");
+    setRefineInput("");
+    launch(instr);
   }
 
   async function cancel() {
@@ -244,6 +323,8 @@ function RunView({
 
         <DynamicForm skill={skill} files={files} onChange={setForm} />
 
+        {isFigure && <ChartAtlas skillDir={skill.dir} selected={chartHint} onSelect={setChartHint} />}
+
         <div className="row">
           <label>
             <input type="checkbox" checked={needsNetwork} onChange={(e) => setNeedsNetwork(e.target.checked)} />
@@ -256,6 +337,21 @@ function RunView({
             <button className="primary" onClick={run} disabled={!workdir || !form.valid}>运行</button>
           )}
         </div>
+
+        {isFigure && lastPy && !running && (
+          <div className="refine">
+            <div className="axis-label">再改一版(基于上一版脚本 {lastPy.split("/").pop()})</div>
+            <div className="row">
+              <input
+                className="refine-input"
+                value={refineInput}
+                onChange={(e) => setRefineInput(e.target.value)}
+                placeholder="例如:把柱子改成横向、配色用蓝绿、加误差棒…"
+              />
+              <button onClick={refine} disabled={!refineInput.trim()}>生成新版本</button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="panes">
