@@ -10,10 +10,12 @@
 //! 注:spawn 在 Rust 侧(完全受信),不经 tauri shell 插件的 capability;
 //! 也因 shell 插件 CommandChild 无法关闭 stdin 而改用 std::process。
 
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -77,22 +79,29 @@ pub struct Usage {
 }
 
 /// 推给前端的领域事件(经 Channel)。
+// 注:enum 级 rename_all 只改变体名(kind 值),不改变体内字段名。
+// 含多词字段的变体需单独标注 rename_all,否则字段会以 snake_case 漏给前端。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DomainEvent {
+    #[serde(rename_all = "camelCase")]
     Started { task_id: String, argv: Vec<String> },
+    #[serde(rename_all = "camelCase")]
     ThreadStarted { thread_id: String },
     TurnStarted,
     Reasoning { text: String },
     AssistantMessage { text: String },
     CommandRun { command: String, status: Option<String> },
     /// 产物发现:codex 改了文件。
+    #[serde(rename_all = "camelCase")]
     Artifact { path: String, change_kind: String },
     Plan { steps: serde_json::Value },
     TurnCompleted { usage: Usage },
     /// 容错透传:未知事件或解析失败,原样给前端控制台。
+    #[serde(rename_all = "camelCase")]
     Raw { codex_type: String, json: serde_json::Value },
     EngineError { class: String, message: String },
+    #[serde(rename_all = "camelCase")]
     Finished {
         outcome: String,
         exit_code: Option<i32>,
@@ -137,6 +146,10 @@ fn build_argv(spec: &TaskSpec, last_message_path: &str) -> Vec<String> {
         spec.sandbox_tier.as_flag().into(),
         "-o".into(),
         last_message_path.into(),
+        // 让 codex 运行的子进程(python 等)继承我们注入的 env
+        // (MPL/fontconfig 缓存重定向、PATH),避免沙箱内 matplotlib abort。
+        "-c".into(),
+        "shell_environment_policy.inherit=all".into(),
     ];
     if spec.needs_network && matches!(spec.sandbox_tier, SandboxTier::WorkspaceWrite) {
         a.push("-c".into());
@@ -167,8 +180,19 @@ pub fn run_task(
     let bin = resolve_codex_bin();
     let argv = build_argv(&spec, &last_message_path);
 
+    // 缓存重定向:workspace-write 沙箱拦了 ~/.cache 写入,会让 matplotlib/fontconfig
+    // abort(实测)。把缓存指到工作目录下的隐藏目录(沙箱内必可写,且被快照扫描跳过)。
+    let cache_root = Path::new(&spec.workdir).join(".nature-cache");
+    std::fs::create_dir_all(cache_root.join("mpl")).ok();
+
+    // spawn 前快照工作目录,用于兜底发现 shell 命令(如 matplotlib)写出的产物。
+    let before = snapshot_dir(Path::new(&spec.workdir));
+
     let mut cmd = Command::new(&bin);
     cmd.args(&argv);
+    cmd.env("MPLBACKEND", "Agg");
+    cmd.env("MPLCONFIGDIR", cache_root.join("mpl"));
+    cmd.env("XDG_CACHE_HOME", &cache_root);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
     // SPIKE-H:stdin 必须给 EOF。无 context → null(立即 EOF);有 context → piped,写完即 drop。
@@ -216,9 +240,12 @@ pub fn run_task(
     let tasks = state.tasks.clone();
     let task_id2 = task_id.clone();
     let child_for_wait = child_arc.clone();
+    let workdir = spec.workdir.clone();
     std::thread::spawn(move || {
         let mut last_thread_id: Option<String> = None;
         let mut total_usage = Usage::default();
+        // 已通过 file_change 事件报告过的产物路径,避免快照 diff 重复发。
+        let mut emitted_artifacts: HashSet<String> = HashSet::new();
 
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
@@ -230,6 +257,9 @@ pub fn run_task(
                 continue;
             }
             for ev in map_line(&line, &mut last_thread_id, &mut total_usage) {
+                if let DomainEvent::Artifact { path, .. } = &ev {
+                    emitted_artifacts.insert(path.clone());
+                }
                 ch.send(ev).ok();
             }
         }
@@ -239,6 +269,25 @@ pub fn run_task(
             let mut c = child_for_wait.lock().unwrap();
             c.wait().ok().and_then(|s| s.code())
         };
+
+        // 兜底:工作目录快照 diff,捕获 shell 命令(如 matplotlib savefig)写出的、
+        // 不会发 file_change 事件的产物。
+        let after = snapshot_dir(Path::new(&workdir));
+        let mut diff_paths: Vec<String> = after
+            .iter()
+            .filter(|(p, m)| before.get(*p).map(|b| b != *m).unwrap_or(true))
+            .map(|(p, _)| p.clone())
+            .filter(|p| !emitted_artifacts.contains(p))
+            .collect();
+        diff_paths.sort();
+        for p in diff_paths {
+            ch.send(DomainEvent::Artifact {
+                path: p,
+                change_kind: "add".into(),
+            })
+            .ok();
+        }
+
         let outcome = if exit_code == Some(0) { "success" } else { "failure" };
         ch.send(DomainEvent::Finished {
             outcome: outcome.into(),
@@ -402,6 +451,54 @@ fn map_item(v: &serde_json::Value, completed: bool) -> Vec<DomainEvent> {
     }
 }
 
+/// 工作目录浅快照:path → (mtime_secs, size)。有界递归,跳过隐藏 / 重目录。
+fn snapshot_dir(root: &Path) -> HashMap<String, (u64, u64)> {
+    let mut map = HashMap::new();
+    walk_dir(root, 0, &mut map);
+    map
+}
+
+fn walk_dir(dir: &Path, depth: usize, out: &mut HashMap<String, (u64, u64)>) {
+    if depth > 4 {
+        return;
+    }
+    let rd = match std::fs::read_dir(dir) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    for entry in rd.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        // 跳过隐藏目录/文件(含 .nature-cache)与常见重目录
+        if name.starts_with('.')
+            || matches!(
+                name.as_str(),
+                "node_modules" | "target" | "venv" | ".venv" | "__pycache__"
+            )
+        {
+            continue;
+        }
+        let ft = match entry.file_type() {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        let p = entry.path();
+        if ft.is_dir() {
+            walk_dir(&p, depth + 1, out);
+        } else if ft.is_file() {
+            if let Ok(meta) = entry.metadata() {
+                let size = meta.len();
+                let mtime = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                out.insert(p.to_string_lossy().to_string(), (mtime, size));
+            }
+        }
+    }
+}
+
 /// 取消任务:kill 子进程并从表中移除。
 pub fn cancel_task(state: &EngineState, task_id: &str) {
     if let Some((_, child)) = state.tasks.remove(task_id) {
@@ -471,8 +568,9 @@ mod tests {
         let mut s = spec();
         s.needs_network = true;
         let a = build_argv(&s, "/tmp/last.txt");
-        let i = a.iter().position(|x| x == "-c").unwrap();
-        assert_eq!(a[i + 1], "sandbox_workspace_write.network_access=true");
+        assert!(a
+            .windows(2)
+            .any(|w| w[0] == "-c" && w[1] == "sandbox_workspace_write.network_access=true"));
     }
 
     #[test]
