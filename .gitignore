@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 大体积 figure 演示语料(24M,可从 pinned commit 重建);保留其余 skill 内容
+/skills-bundled/nature-figure/assets/figures4papers/

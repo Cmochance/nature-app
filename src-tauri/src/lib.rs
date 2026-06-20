@@ -1,7 +1,15 @@
 mod engine;
+mod skills;
 
 use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
+use skills::SkillDescriptor;
 use tauri::ipc::Channel;
+
+/// 列出所有 nature-* skill(解析 bundled manifest + SKILL.md)。
+#[tauri::command]
+fn list_skills() -> Vec<SkillDescriptor> {
+    skills::load_skills(&skills::skills_root())
+}
 
 /// 启动一个 skill 任务,流式事件经 `on_event` Channel 推回前端,返回 task_id。
 #[tauri::command]
@@ -36,7 +44,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             run_skill_task,
             cancel_task,
-            check_engine
+            check_engine,
+            list_skills
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
