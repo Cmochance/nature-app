@@ -69,6 +69,7 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const payloadRef = useRef("");
+ const reqIdRef = useRef(0);
 
   const chartType = spec.chart_type || "line";
   const st: PlotStyle = spec.style ?? {};
@@ -102,6 +103,7 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
 
     const timer = setTimeout(async () => {
       payloadRef.current = payload;
+      const myId = ++reqIdRef.current;
       setLoading(true);
       setError(null);
       // heatmap 切入时如果 data.grid 不存在,注入默认矩阵
@@ -111,11 +113,13 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
           : data;
       try {
         const resp = await previewPlot(chartType, spec, renderData, "svg");
+        if (myId !== reqIdRef.current) return; // 丢弃过期响应
         setPreviewUrl(toDataUrl(resp.imageFormat, resp.imageBase64));
       } catch (e) {
-        setError(String(e));
+        if (myId !== reqIdRef.current) return;
+       setError(String(e));
       } finally {
-        setLoading(false);
+        if (myId === reqIdRef.current) setLoading(false);
       }
     }, 400);
 
