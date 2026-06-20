@@ -125,7 +125,10 @@ pub async fn preview_plot(
         Command::new(&py)
             .arg(&script)
             .env("MPLBACKEND", "Agg")
-            .env("HOME", &cwd)
+            // 用 MPLCONFIGDIR/XDG_CACHE_HOME 隔离缓存,不覆盖 HOME
+            // (否则回退到系统 python3 时,pip install --user 的包会找不到)
+            .env("MPLCONFIGDIR", cwd.join("mpl"))
+            .env("XDG_CACHE_HOME", cwd.join("cache"))
             .env("PYTHONUNBUFFERED", "1")
             .current_dir(&cwd)
             .output()

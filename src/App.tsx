@@ -233,7 +233,9 @@ function RunView({
       setLoadedData(JSON.parse(dataStr));
       push("已加载绘图参数,可点击「图表微调」实时调整", "ok");
     } catch {
-      // 参数文件不存在(旧版产物或 mock 模式),保留演示数据
+      // 参数文件不存在或解析失败,清除旧参数避免编辑器渲染过期数据
+      setLoadedSpec(null);
+      setLoadedData(null);
     }
   }
 
@@ -258,6 +260,8 @@ function RunView({
     setArtifacts([]);
     setResult(null);
     setTokens({ in: 0, out: 0 });
+    setLoadedSpec(null);
+    setLoadedData(null);
     setRunning(true);
     taskIdRef.current = null;
     gotResultRef.current = false;

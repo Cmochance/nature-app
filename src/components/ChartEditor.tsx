@@ -100,10 +100,11 @@ export default function ChartEditor({ initialSpec, initialData, onBack }: Props)
   useEffect(() => {
     const payload = JSON.stringify({ chartType, spec, data });
     if (payload === payloadRef.current) return;
+    // 参数变化时立即使旧的在途请求失效(不等 400ms 防抖)
+    const myId = ++reqIdRef.current;
 
     const timer = setTimeout(async () => {
       payloadRef.current = payload;
-      const myId = ++reqIdRef.current;
       setLoading(true);
       setError(null);
       // heatmap 切入时如果 data.grid 不存在,注入默认矩阵
