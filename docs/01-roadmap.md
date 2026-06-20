@@ -1,7 +1,8 @@
 # nature-app 完整推进方案(逐项)
 
-> 状态:已批准(Approved 2026-06-20)· M0 Codex spike 已实测(2026-06-20)
-> 配套文档:`00-feasibility-and-direction.md`(整体方向);`01-codex-spikes-results.md`(M0 实测结论,**已生成**——含对本方案的修正)
+> 状态:已批准(Approved 2026-06-20)· **M0 已完成并实测出图(2026-06-20)**
+> 配套文档:`00-feasibility-and-direction.md`(整体方向);`01-codex-spikes-results.md`(Codex 实测结论 + M0 集成发现,**已生成**——含对本方案的修正)
+> M0 成果:Tauri2+React 工程跑通 `选目录→codex exec→流式控制台→chart.png 出图显示`;8 个 Rust 单测 + 前端 build 全绿。已暴露并修复"沙箱内 matplotlib abort(环境地狱)"与"产物需快照兜底"两问题。
 > 本方案所有技术细节均经对 nature-skills 仓库 / Codex CLI 官方文档 / Tauri 2.x 官方文档的实地调研;未确认事实一律列入 M0 验证 spike,绝不凭推测。
 
 ## Context
@@ -199,6 +200,8 @@ figure 再改一版=新 run,`parentRunId` 串版本树。全本地、零遥测�
 - [RS] 单 skill 端到端:`prepare_task`/`run_skill_task`/`cancel_task`(figure/python)
 - [FE] 最小控制台(流式渲染 DomainEvent)+ 选 figure + 选数据文件 + 跑 + `convertFileSrc` 显示 png
 - **Exit**:mac+win 各跑通 figure 出图;SPIKE 全部有结论并落档;`supports_resume`/skill 注入方式/sandbox 默认/退出码映射均已确定
+  - ✅ **macOS 已达成**(2026-06-20):figure 端到端出图显示;SPIKE A2/A/B/C/D/E/F/G/H/J/K 实测;engine seam(`engine.rs`)就位;8 单测绿
+  - ⏳ **Windows 验证**留到 M4 CI(本机 macOS 先行);Codex 用本机 0.142.0-alpha.6,产品化前 pin 稳定版回归
 
 ### M1 — manifest 通用 runner(全 11 skill baseline)
 - [RS] `skills/parser.rs`:serde_yaml 解析 11 个 manifest + SKILL.md frontmatter → SkillDescriptor;`list_skills`/`get_skill`

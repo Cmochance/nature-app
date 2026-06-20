@@ -83,3 +83,23 @@
 - SPIKE-L:Tauri `Receiver<CommandEvent>` 是否严格按行 + 长事件不被切(M0 搭好 Tauri 后测)。
 - SPIKE-I 完整版:fresh CODEX_HOME 的登录行为(需要时再测,注意避免交互挂起)。
 - pinned 稳定版 codex-cli 上的全表回归(产品化前必做)。
+
+---
+
+## 6. M0 GUI 集成实测新发现(2026-06-20,真实跑通 figure 出图)
+
+M0 把引擎接进 Tauri 跑真实 figure 任务,额外暴露两个**计划已预判**的问题:
+
+1. **环境地狱命中(Python 在沙箱内 abort)**:`workspace-write` 沙箱拦了 `~/.cache/fontconfig` / `~/.matplotlib` 写入 → matplotlib 建字体缓存时 fontconfig `abort()`(macOS 弹 Python 崩溃报告)。
+   - 确定性复现:`Fontconfig error: No writable cache directories` → SIGABRT;缓存目录可写时则正常。
+   - **修法**:spawn codex 时注入 `MPLBACKEND=Agg` + `MPLCONFIGDIR` + `XDG_CACHE_HOME` 指向**工作目录内**可写缓存(`.nature-cache/`,被快照扫描跳过),并加 `-c shell_environment_policy.inherit=all` 确保 env 透传到 codex 跑的子进程。
+   - **意义**:坐实 M1 必须用 **uv 托管隔离环境**(pin 稳定 Python + 预置缓存),不能裸用系统 Python(本机是 Homebrew Python 3.14.5,极新)。
+
+2. **产物发现必须有快照兜底**:codex 用 **shell 命令**(python matplotlib savefig)写出的文件只发 `command_execution` 事件,**不发 `file_change`**。仅靠 file_change 会漏掉所有"脚本写出"的产物。
+   - **修法**:任务前后对工作目录做**浅快照 diff**(有界递归、跳过隐藏/重目录),补发 `file_change` 未覆盖的新增/变更文件为 Artifact。
+   - **意义**:验证计划 §3.1"产物发现 = 事件驱动 + 快照 diff 兜底"是必需的,不是可选。
+
+附带观察:
+- codex 的 `apply_patch` 偶尔会把 `*** End Patch` 文本误写进目标文件,codex 会**自我纠正**重写(日志里表现为一次 `command_execution failed` 后重跑成功)——属 codex 自身行为,app 无需干预。
+- `tauri-plugin-shell` 的 `CommandChild` 因 stdin 写端无法单独关闭会导致 codex 挂死(源码 `process/mod.rs:169` 恒 `Stdio::piped()`)→ 已改用 `std::process::Command`(stdin 用 `Stdio::null()` 或写完即 drop)。
+- DomainEvent 的多词字段需 **per-variant `rename_all`**(enum 级 rename_all 只改变体名,不改变体内字段名),否则字段以 snake_case 漏给前端。
