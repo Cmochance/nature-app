@@ -237,9 +237,22 @@ function RunView({
             out: p.out + ev.usage.output_tokens,
           }));
           break;
-        case "engineError":
-          push(`[错误:${ev.class}] ${ev.message}`, "err");
+        case "plan":
+          push("[计划] 已更新", "dim");
           break;
+        case "progress":
+          push(`[进度] ${ev.text}`, "dim");
+          break;
+        case "engineError": {
+          const cta: Record<string, string> = {
+            notLoggedIn: " → 请在终端运行 codex login",
+            networkBlocked: " → 勾选'允许联网'后重试",
+            notInstalled: " → 未检测到 codex,请先安装",
+            timeout: "",
+          };
+          push(`[错误:${ev.class}] ${ev.message}${cta[ev.class] ?? ""}`, "err");
+          break;
+        }
         case "raw":
           push(`[raw:${ev.codexType}]`, "dim");
           break;

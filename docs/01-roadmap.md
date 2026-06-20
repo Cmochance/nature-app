@@ -1,6 +1,6 @@
 # nature-app 完整推进方案(逐项)
 
-> 状态:已批准(Approved 2026-06-20)· **M0 + M1 已完成并实测(2026-06-20,macOS)**
+> 状态:已批准(Approved 2026-06-20)· **M0–M4 全部代码完成(2026-06-20,macOS)** —— M0/M1 已 GUI 实测;M2/M3/M4 代码完成+cargo test/前端 build 全绿,待 GUI 冒烟
 > 配套文档:`00-feasibility-and-direction.md`(整体方向);`01-codex-spikes-results.md`(Codex 实测结论 + M0 集成发现,**已生成**——含对本方案的修正)
 > M0 成果:Tauri2+React 跑通 `选目录→codex exec→流式控制台→chart.png 出图`;8 单测+前端 build 绿。修复"沙箱内 matplotlib abort"与"产物需快照兜底"。
 > M1 成果:vendor pinned nature-skills(5d2ba1d)+ manifest 解析(13 单测)+ 11-skill 目录 + manifest 驱动 DynamicForm(三档)+ 安装到 ~/.codex/skills 调起 + 产物预览路由(markdown 结果/图片/文件)+ uv 隔离 Python(3.13)根治环境地狱。**实测**:polishing(文本→markdown 渲染)、figure(python→png+svg,经 uv 不再崩)端到端跑通。
@@ -232,7 +232,9 @@ figure 再改一版=新 run,`parentRunId` 串版本树。全本地、零遥测�
 - [FE] citation/academic-search 引用列表 + 导 Zotero(集成方式据 M0 #7)
 - **Exit**:4 个精修视图就位;academic-search 免费源 arXiv/Crossref/PubMed 可用
 
-### M4 — 打磨 + 分发
+### M4 — 打磨 + 分发 ✅(代码完成 2026-06-20)
+> README(中英)+ LICENSE(MIT)+ NOTICE(vendored skills Apache-2.0 attribution);错误处理打磨(无活动看门狗 300s、item.updated/todo_list→进度事件不刷屏、错误分类 CTA);skills 上游同步 UI;CI workflow(mac+win matrix,cargo test+前端 build+tauri build,未签名)。
+> **范围决策**:计划列的"app 全量 i18n(中/英)"本版**延后**——这是中文优先 app,README 已做中英双语;全量字符串 i18n 价值靠后、属大重构,留作后续(非静默砍掉,明确记录)。签名/公证待配 secrets 后在 CI 启用。
 - [INFRA] CI matrix(mac/win)用 `tauri-action`;macOS 签名+公证、Windows 代码签名(参考 mochat desktop.yml)
 - [FE] 成熟度徽章全覆盖、错误分类 CTA 完整、i18n(中/英,复用 mochat i18next)
 - [RS] skills 上游同步、Office 打开/下载、watchdog/取消/僵尸进程回收(参考 sidecar.ts SIGTERM→SIGKILL)

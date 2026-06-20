@@ -25,6 +25,20 @@ export default function Settings({
   }
   useEffect(() => refresh(), []);
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  async function syncSkills() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const n = await invoke<number>("install_skills");
+      setSyncMsg(n === 0 ? "已是最新(pinned 版未变)" : `已同步 ${n} 个目录到 ~/.codex/skills/`);
+    } catch (e) {
+      setSyncMsg("失败:" + String(e));
+    }
+    setSyncing(false);
+  }
+
   async function registerAcademic() {
     if (!email.trim()) return;
     setAcBusy(true);
@@ -106,6 +120,17 @@ export default function Settings({
           </div>
         </>
       )}
+
+      <div className="doctor-block">
+        <h3>Skills 同步</h3>
+        <p className="dim small">把打包的 nature-skills(pinned 版)同步到 ~/.codex/skills/,供 codex 加载。</p>
+        <div className="row">
+          <button onClick={syncSkills} disabled={syncing}>
+            {syncing ? "同步中…" : "检查 / 同步 skills"}
+          </button>
+          {syncMsg && <span className="dim small">{syncMsg}</span>}
+        </div>
+      </div>
 
       <div className="doctor-block">
         <h3>文献检索(academic-search MCP)</h3>

@@ -29,6 +29,7 @@ export type DomainEvent =
   | { kind: "commandRun"; command: string; status?: string | null }
   | { kind: "artifact"; path: string; changeKind: string }
   | { kind: "plan"; steps: unknown }
+  | { kind: "progress"; text: string }
   | { kind: "turnCompleted"; usage: Usage }
   | { kind: "raw"; codexType: string; json: unknown }
   | { kind: "engineError"; class: string; message: string }

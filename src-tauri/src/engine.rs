@@ -15,7 +15,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -96,6 +96,8 @@ pub enum DomainEvent {
     #[serde(rename_all = "camelCase")]
     Artifact { path: String, change_kind: String },
     Plan { steps: serde_json::Value },
+    /// 轻量进度(如 todo_list 更新),不刷屏。
+    Progress { text: String },
     TurnCompleted { usage: Usage },
     /// 容错透传:未知事件或解析失败,原样给前端控制台。
     #[serde(rename_all = "camelCase")]
@@ -247,6 +249,40 @@ pub fn run_task(
     let task_id2 = task_id.clone();
     let child_for_wait = child_arc.clone();
     let workdir = spec.workdir.clone();
+
+    // 无活动看门狗:长时间无新事件且任务未结束 → kill(安全网,阈值给足避免误杀长任务)。
+    let last_activity = Arc::new(Mutex::new(Instant::now()));
+    {
+        let wd_child = child_arc.clone();
+        let wd_activity = last_activity.clone();
+        let wd_tasks = state.tasks.clone();
+        let wd_id = task_id.clone();
+        let wd_ch = channel.clone();
+        std::thread::spawn(move || {
+            const IDLE_LIMIT_SECS: u64 = 300;
+            loop {
+                std::thread::sleep(Duration::from_secs(15));
+                if !wd_tasks.contains_key(&wd_id) {
+                    break; // 任务已正常结束并从表移除
+                }
+                let idle = wd_activity.lock().map(|t| t.elapsed().as_secs()).unwrap_or(0);
+                if idle > IDLE_LIMIT_SECS {
+                    wd_ch
+                        .send(DomainEvent::EngineError {
+                            class: "timeout".into(),
+                            message: format!("超过 {IDLE_LIMIT_SECS}s 无新事件,已终止任务"),
+                        })
+                        .ok();
+                    if let Ok(mut c) = wd_child.lock() {
+                        let _ = c.kill();
+                    }
+                    break;
+                }
+            }
+        });
+    }
+
+    let activity = last_activity.clone();
     std::thread::spawn(move || {
         let mut last_thread_id: Option<String> = None;
         let mut total_usage = Usage::default();
@@ -262,6 +298,7 @@ pub fn run_task(
             if line.trim().is_empty() {
                 continue;
             }
+            *activity.lock().unwrap() = Instant::now();
             for ev in map_line(&line, &mut last_thread_id, &mut total_usage) {
                 if let DomainEvent::Artifact { path, .. } = &ev {
                     emitted_artifacts.insert(path.clone());
@@ -365,7 +402,9 @@ fn map_line(
                 message: msg,
             }]
         }
-        "item.started" | "item.completed" => map_item(&v, t == "item.completed"),
+        "item.started" | "item.completed" | "item.updated" => {
+            map_item(&v, t == "item.completed")
+        }
         other => vec![DomainEvent::Raw {
             codex_type: other.to_string(),
             json: v,
@@ -450,6 +489,10 @@ fn map_item(v: &serde_json::Value, completed: bool) -> Vec<DomainEvent> {
                 .unwrap_or(serde_json::Value::Null);
             vec![DomainEvent::Plan { steps }]
         }
+        // 计划/待办更新:codex 频繁发,不刷屏,只给一行轻量进度。
+        "todo_list" => vec![DomainEvent::Progress {
+            text: "计划更新".into(),
+        }],
         other => vec![DomainEvent::Raw {
             codex_type: format!("item:{other}"),
             json: item.clone(),

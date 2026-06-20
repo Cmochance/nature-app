@@ -1,0 +1,18 @@
+Nature App
+Copyright (c) 2026 Cmochance
+
+This product includes software developed as part of the nature-skills project.
+
+================================================================================
+Bundled: nature-skills
+================================================================================
+Path in this repo: skills-bundled/
+Source:            https://github.com/Yuan1z0825/nature-skills
+Pinned commit:     5d2ba1dee1c087be6de8f4a8aad4b27f04974be9
+License:           Apache License 2.0 (see skills-bundled/LICENSE)
+Scope:             _shared + the 11 nature-* skills (openclaw-medical-skills not vendored;
+                   nature-figure/assets/figures4papers excluded from the repo to reduce size,
+                   reconstructible from the pinned commit).
+Modifications:     None. The skill content is vendored unmodified ("thin wrapper").
+                   Per Apache-2.0, this NOTICE and the upstream LICENSE are retained;
+                   any future modification must be recorded in skills-bundled/PINNED.md.
