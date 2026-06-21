@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { EngineStatus } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
 import type { PlotSpec, PlotData } from "./types/plot";
 import { LangProvider, useI18n } from "./i18n";
@@ -39,7 +38,6 @@ const DEMO_PLOT_DATA: PlotData = {
 
 function Shell() {
   const { t, lang } = useI18n();
-  const [engine, setEngine] = useState<EngineStatus | null>(null);
   const [skills, setSkills] = useState<SkillDescriptor[]>([]);
   const [skillsError, setSkillsError] = useState<string | null>(null);
 
@@ -57,7 +55,6 @@ function Shell() {
   const activeRunIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    invoke<EngineStatus>("check_engine").then(setEngine).catch(() => setEngine(null));
     invoke<SkillDescriptor[]>("list_skills")
       .then((s) => { setSkills(s); setSkillsError(null); })
       .catch((e) => setSkillsError(String(e)));
@@ -117,11 +114,9 @@ function Shell() {
     <div className="shell" data-view={view}>
       <Sidebar
         skills={skills}
-        engine={engine}
         view={view}
         recent={recent}
         onView={setView}
-        onNewTask={() => setView("home")}
         onOpenSkill={openSkill}
         onOpenRecent={openRecent}
       />

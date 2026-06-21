@@ -101,6 +101,15 @@ input,textarea { font:inherit; }
 .icon-btn svg { width:15px; height:15px; }
 .icon-btn.wide { width:auto; padding:0 10px; gap:6px; font-size:12px; }
 
+/* 侧栏底部三行按钮:设置 / 主题 / 语言 */
+.side-foot { border-top:1px solid var(--border); padding:8px; display:flex; flex-direction:column; gap:4px; background:var(--surface); }
+.side-action { display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:0; background:none; border-radius:var(--radius-xs); color:var(--text-dim); font-size:13px; text-align:left; transition:background .12s ease,color .12s ease; }
+.side-action:hover { background:var(--surface-2); color:var(--text); }
+.side-action.active { background:var(--accent-soft); color:var(--text); }
+.side-action svg { width:16px; height:16px; color:var(--text-faint); flex-shrink:0; }
+.side-action.active svg { color:var(--accent-strong); }
+.side-action span { flex:1; }
+
 /* 通用 */
 .scroll-area { flex:1; overflow-y:auto; }
 .page { max-width:920px; margin:0 auto; padding:32px 32px 48px; width:100%; }
