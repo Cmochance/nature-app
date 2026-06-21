@@ -30,19 +30,21 @@ Tauri (Rust):
 **当前仅在 macOS 上开发并实测**(Apple Silicon)。代码含若干 macOS 假设(如探测 `/Applications/Codex.app`、PATH 以 `:` 分隔)。Windows 支持已在 CI 打包矩阵预留,但**尚未实测**;Linux 暂未适配。
 
 ### 前置依赖
-- [Codex CLI](https://github.com/openai/codex)(已 `codex login`)
 - [uv](https://github.com/astral-sh/uv)(用于隔离 Python 环境)
 - Node + pnpm、Rust 工具链(开发用)
+- **codex 随 app 打包(Tauri sidecar)**,无需用户本机安装 Codex CLI;但**构建/开发前需先拉二进制**:`scripts/fetch-codex.sh`(否则 Tauri build.rs 因缺 `src-tauri/binaries/codex-<triple>` 而失败)
 
 ### 开发
 ```bash
+scripts/fetch-codex.sh   # 拉 codex sidecar 二进制(按本机平台,首次必跑;二进制不入库)
 pnpm install
-pnpm tauri dev      # 启动桌面 app(dev)
+pnpm tauri dev           # 启动桌面 app(dev)
 ```
-首次启动会把 nature-skills 同步到 `~/.codex/skills/`,并后台自举 uv 隔离环境。
+codex 使用**隔离的 CODEX_HOME**(`~/.nature-app/codex-home`,可 `NATURE_APP_CODEX_HOME` 覆盖),与本地 `~/.codex` 的登录 / skills / MCP / 配置**互不交叉**。首次启动把 nature-skills 同步到该隔离目录、后台自举 uv 环境;codex 的登录在**设置页「登录」入口**单独完成(与本地 codex 登录互不影响)。
 
 ### 测试 / 构建
 ```bash
+scripts/fetch-codex.sh         # codex sidecar(cargo / 打包前必须先拉到位)
 cd src-tauri && cargo test     # Rust 单测(解析/事件契约)
 pnpm build                     # 前端 tsc + vite
 pnpm tauri build               # 打包(各平台需在该平台构建)
@@ -56,12 +58,14 @@ pnpm tauri build               # 打包(各平台需在该平台构建)
 A **local desktop app** (Tauri 2 + React) that wraps the user's **OpenAI Codex CLI** to run nature-skills. **One manifest-driven runner** powers all 11 skills — forms are generated from each skill's `manifest.yaml` (axes → controls, blocking gate → required). An **uv-managed isolated Python (3.13)** avoids system-Python/sandbox crashes. Heterogeneous **artifact previews**: Markdown results, inline images, citation lists (→ Zotero), Office via system apps; figure "re-iterate" + chart-atlas; polishing side-by-side; reviewer 3-column; reader bilingual.
 
 ### Prerequisites
-[Codex CLI](https://github.com/openai/codex) (logged in), [uv](https://github.com/astral-sh/uv), Node + pnpm, Rust (for dev).
+[uv](https://github.com/astral-sh/uv), Node + pnpm, Rust (for dev). codex ships **bundled as a Tauri sidecar** (no system install needed), but you must fetch the binary before building: `scripts/fetch-codex.sh` (otherwise Tauri's build.rs fails on the missing `src-tauri/binaries/codex-<triple>`).
 
 ### Develop
 ```bash
+scripts/fetch-codex.sh   # fetch codex sidecar (per host platform; required once)
 pnpm install && pnpm tauri dev
 ```
+codex uses an **isolated CODEX_HOME** (`~/.nature-app/codex-home`), separate from your local `~/.codex` (login / skills / MCP / config never cross). Sign in from Settings → "Sign in" (independent of your local codex login).
 
 ---
 

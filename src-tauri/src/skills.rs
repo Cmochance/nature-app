@@ -222,12 +222,11 @@ pub fn load_skills(root: &Path) -> Vec<SkillDescriptor> {
     dirs.iter().filter_map(|d| parse_skill(d)).collect()
 }
 
-/// 安装/同步 bundled skills 到 codex 可读的 `~/.codex/skills/`,使 codex 能原生加载
+/// 安装/同步 bundled skills 到隔离 CODEX_HOME 的 `skills/`,使 codex 能原生加载
 /// nature-* 技能(SPIKE-C/D 已验证 codex 从该目录隐式/显式触发 skill)。
 /// 幂等:marker 记录 pinned commit,未变则跳过(返回 0)。
 pub fn install_skills(bundled_root: &Path) -> Result<usize, String> {
-    let home = std::env::var("HOME").map_err(|_| "HOME 未设置".to_string())?;
-    let codex_skills = PathBuf::from(&home).join(".codex").join("skills");
+    let codex_skills = crate::engine::codex_home().join("skills");
     std::fs::create_dir_all(&codex_skills).map_err(|e| e.to_string())?;
 
     let pin = std::fs::read_to_string(bundled_root.join(".pinned"))

@@ -42,6 +42,15 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
 
+      # codex sidecar(externalBin):按本平台 target 拉二进制,tauri build 才能打进包
+      - name: Cache codex sidecar
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries
+          key: codex-${{ runner.os }}-${{ runner.arch }}-rust-v0.141.0
+      - name: Fetch codex sidecar
+        run: bash scripts/fetch-codex.sh
+
       - name: Build & package (Tauri) → draft release
         uses: tauri-apps/tauri-action@v0
         env:

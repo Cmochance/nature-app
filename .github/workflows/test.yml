@@ -54,6 +54,15 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # codex sidecar 是 externalBin,build.rs 校验其存在 → cargo 前必须拉到位
+      - name: Cache codex sidecar
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries
+          key: codex-${{ runner.os }}-${{ runner.arch }}-rust-v0.141.0
+      - name: Fetch codex sidecar
+        run: bash scripts/fetch-codex.sh
+
       - name: Format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
 

@@ -24,6 +24,20 @@ export default function Settings({ doctor, dangerSandbox, onDangerChange, defaul
   const [acBusy, setAcBusy] = useState(false);
   const [acErr, setAcErr] = useState<string | null>(null);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginErr, setLoginErr] = useState<string | null>(null);
+
+  async function login() {
+    setLoggingIn(true);
+    setLoginErr(null);
+    try {
+      await invoke("codex_login");
+      doctor.refresh();
+    } catch (e) {
+      setLoginErr(String(e));
+    }
+    setLoggingIn(false);
+  }
 
   // 首次进设置异步探测一次(check_doctor + get_setup_status);之后读 App 层缓存,秒开不重探
   useEffect(() => { doctor.ensureLoaded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -104,7 +118,13 @@ export default function Settings({ doctor, dangerSandbox, onDangerChange, defaul
             <button className="pick-btn" onClick={() => doctor.refresh()} disabled={doctor.loading} title={recheckLabel}>
               <Icon name="refresh" />{doctor.loading ? t("settings.checking") : recheckLabel}
             </button>
+            {rep && !rep.engine.loggedIn && (
+              <button className="pick-btn" onClick={login} disabled={loggingIn}>
+                <Icon name="user" />{loggingIn ? (lang === "zh" ? "登录中…" : "Signing in…") : (lang === "zh" ? "登录" : "Sign in")}
+              </button>
+            )}
             {rep && <span className={"status-pill " + (rep.engine.loggedIn ? "done" : "err")}>{rep.engine.loggedIn ? t("status.ready") : t("status.notSignedIn")}</span>}
+            {loginErr && <span className="p-sub warn-text" style={{ flexBasis: "100%" }}>{loginErr}</span>}
           </div>
           <div className="panel-body">
             {!rep ? <div className="dr"><span className="dim">{t("settings.checking")}</span></div> : <>

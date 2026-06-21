@@ -173,6 +173,14 @@ fn check_engine() -> EngineStatus {
     engine::check_engine()
 }
 
+/// 在隔离 CODEX_HOME 下登录(浏览器 OAuth);与本地 ~/.codex 互不影响。阻塞至完成。
+#[tauri::command]
+async fn codex_login() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(engine::login)
+        .await
+        .map_err(|e| format!("login task join: {e}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -184,7 +192,7 @@ pub fn run() {
         .setup(|app| {
             let st = app.state::<SetupState>().0.clone();
             let st_py = st.clone();
-            // 后台同步 bundled skills 到 ~/.codex/skills/(幂等,首启拷贝不阻塞窗口)。
+            // 后台同步 bundled skills 到隔离 CODEX_HOME 的 skills/(幂等,首启拷贝不阻塞窗口)。
             std::thread::spawn(move || {
                 let msg = match skills::install_skills(&skills::skills_root()) {
                     Ok(0) => "已是最新".to_string(),
@@ -213,6 +221,7 @@ pub fn run() {
             run_skill_task,
             cancel_task,
             check_engine,
+            codex_login,
             list_skills,
             install_skills,
             check_pyenv,

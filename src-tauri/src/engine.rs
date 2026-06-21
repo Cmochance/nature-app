@@ -156,11 +156,20 @@ pub struct EngineStatus {
     pub logged_in: bool,
 }
 
-/// 解析 codex 可执行路径:env 覆盖 > Codex.app 内置(本机已验证 0.142)> PATH。
+/// 解析 codex 可执行路径:env 覆盖 > 打包 sidecar(与主程序同目录)> Codex.app(本机开发兜底)> PATH。
 pub fn resolve_codex_bin() -> String {
     if let Ok(p) = std::env::var("NATURE_APP_CODEX_BIN") {
         if !p.is_empty() {
             return p;
+        }
+    }
+    // 打包的 sidecar:Tauri externalBin 去掉 target 后缀后置于主程序同目录的 codex
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let side = dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+            if side.exists() {
+                return side.to_string_lossy().to_string();
+            }
         }
     }
     let app_bin = "/Applications/Codex.app/Contents/Resources/codex";
@@ -168,6 +177,50 @@ pub fn resolve_codex_bin() -> String {
         return app_bin.to_string();
     }
     "codex".to_string()
+}
+
+/// 项目专属 CODEX_HOME —— 与本地 `~/.codex` 隔离,避免登录/skills/MCP/配置交叉。
+/// 默认 `~/.nature-app/codex-home`,可被 `NATURE_APP_CODEX_HOME` 覆盖。
+/// 所有对 codex 的调用(exec / 探测 / mcp / login)都应经此。
+pub fn codex_home() -> std::path::PathBuf {
+    if let Ok(p) = std::env::var("NATURE_APP_CODEX_HOME") {
+        if !p.is_empty() {
+            return std::path::PathBuf::from(p);
+        }
+    }
+    std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default())
+        .join(".nature-app")
+        .join("codex-home")
+}
+
+/// 构造一个已设隔离 `CODEX_HOME` 的 codex `Command`(并确保该目录存在)。
+/// 统一入口,确保所有 codex 子进程都用项目自己的配置环境。
+pub fn codex_command() -> Command {
+    let home = codex_home();
+    let _ = std::fs::create_dir_all(&home);
+    let mut c = Command::new(resolve_codex_bin());
+    c.env("CODEX_HOME", &home);
+    c
+}
+
+/// 在隔离 CODEX_HOME 下执行 `codex login`(浏览器 OAuth)。阻塞至完成:
+/// codex 起本地回调服务 + 打开浏览器,用户授权后写入 `$CODEX_HOME/auth.json` 并退出。
+/// 与本地 ~/.codex 登录互不影响。
+pub fn login() -> Result<(), String> {
+    let out = codex_command()
+        .arg("login")
+        .output()
+        .map_err(|e| format!("启动 codex login 失败: {e}"))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(if msg.is_empty() {
+            "codex login 未成功".into()
+        } else {
+            msg
+        })
+    }
 }
 
 /// 由 TaskSpec 构造 `codex exec` argv(实测修正版)。
@@ -217,7 +270,6 @@ pub fn run_task(
         .to_string_lossy()
         .to_string();
 
-    let bin = resolve_codex_bin();
     let argv = build_argv(&spec, &last_message_path);
 
     // 缓存重定向:workspace-write 沙箱拦了 ~/.cache 写入,会让 matplotlib/fontconfig
@@ -228,7 +280,7 @@ pub fn run_task(
     // spawn 前快照工作目录,用于兜底发现 shell 命令(如 matplotlib)写出的产物。
     let before = snapshot_dir(Path::new(&spec.workdir));
 
-    let mut cmd = Command::new(&bin);
+    let mut cmd = codex_command();
     cmd.args(&argv);
     cmd.env("MPLBACKEND", "Agg");
     cmd.env("MPLCONFIGDIR", cache_root.join("mpl"));
@@ -683,20 +735,15 @@ pub fn cancel_task(state: &EngineState, task_id: &str) {
 /// 引擎自检:codex 版本 + 登录态。
 pub fn check_engine() -> EngineStatus {
     let bin = resolve_codex_bin();
-    let version = Command::new(&bin)
+    let version = codex_command()
         .arg("--version")
         .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
 
-    // auth.json:$CODEX_HOME/auth.json 或 ~/.codex/auth.json
-    let codex_home = std::env::var("CODEX_HOME").ok().unwrap_or_else(|| {
-        std::env::var("HOME")
-            .map(|h| format!("{h}/.codex"))
-            .unwrap_or_default()
-    });
-    let logged_in = Path::new(&format!("{codex_home}/auth.json")).exists();
+    // 登录态:隔离 CODEX_HOME 下的 auth.json(与本地 ~/.codex 互不影响)
+    let logged_in = codex_home().join("auth.json").exists();
 
     EngineStatus {
         bin,
