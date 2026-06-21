@@ -3,6 +3,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { DomainEvent, TaskSpec, Usage } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
+import type { PlotSpec, PlotData } from "./types/plot";
 import type { Lang } from "./i18n";
 import { fileName } from "./lib";
 
@@ -37,6 +38,8 @@ interface ActiveRun {
   needsNetwork: boolean;
 }
 
+export interface PlotParams { spec: PlotSpec; data: PlotData; }
+
 export interface RunController {
   active: ActiveRun | null;
   items: RunItem[];
@@ -46,6 +49,7 @@ export interface RunController {
   tokens: { in: number; out: number };
   nonce: number;
   canRefine: boolean;
+  plotParams: PlotParams | null; // figure 任务导出的 plot_spec/plot_data(供图表微调)
   launch: (spec: LaunchSpec) => void;
   sendFollowup: (text: string) => void;
   cancel: () => void;
@@ -60,6 +64,7 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
   const [tokens, setTokens] = useState({ in: 0, out: 0 });
   const [active, setActive] = useState<ActiveRun | null>(null);
   const [nonce, setNonce] = useState(0);
+  const [plotParams, setPlotParams] = useState<PlotParams | null>(null);
 
   const taskIdRef = useRef<string | null>(null);
   const gotResultRef = useRef(false);
@@ -83,6 +88,7 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
         setArtifacts([]);
         setResult(null);
         setTokens({ in: 0, out: 0 });
+        setPlotParams(null);
         setActive(ctx);
       } else {
         setItems((prev) => [...prev, { k: "user", text: displayText, files }]);
@@ -148,6 +154,15 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
               push({ k: "note", text: `${t("run.finished")} · ${ev.outcome}${exit}`, cls: ev.outcome === "success" ? undefined : "err" });
             }
             setRunning(false);
+            // figure 任务成功 → 尝试载入 codex 导出的绘图参数(供图表微调,无则保持 null,UI 用 demo 兜底)
+            if (ev.outcome === "success" && ctx.skill?.id === "nature-figure") {
+              Promise.all([
+                readTextFile(`${ctx.workdir}/plot_spec.json`),
+                readTextFile(`${ctx.workdir}/plot_data.json`),
+              ])
+                .then(([s, d]) => setPlotParams({ spec: JSON.parse(s) as PlotSpec, data: JSON.parse(d) as PlotData }))
+                .catch(() => { /* 无参数文件,保持 null */ });
+            }
             break;
         }
       };
@@ -207,5 +222,5 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
     begin(instr, text.trim(), [], true, a);
   }, [begin]);
 
-  return { active, items, artifacts, result, running, tokens, nonce, canRefine, launch, sendFollowup, cancel, refine };
+  return { active, items, artifacts, result, running, tokens, nonce, canRefine, plotParams, launch, sendFollowup, cancel, refine };
 }

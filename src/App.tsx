@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { EngineStatus } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
+import type { PlotSpec, PlotData } from "./types/plot";
 import { LangProvider, useI18n } from "./i18n";
 import { ThemeProvider } from "./theme";
 import { skillName } from "./skillsMeta";
@@ -11,7 +12,30 @@ import Home from "./components/Home";
 import TaskConfig from "./components/TaskConfig";
 import RunView from "./components/RunView";
 import Settings from "./components/Settings";
+import ChartEditor from "./components/ChartEditor";
 import "./styles.css";
+
+// 图表微调的演示数据:figure 任务未导出 plot_spec/plot_data 时的兜底。
+const DEMO_XS = Array.from({ length: 21 }, (_, i) => +(i * 0.5).toFixed(1));
+const DEMO_PLOT_SPEC: PlotSpec = {
+  chart_type: "line",
+  title: "Sample Data Visualization",
+  x_label: "Time",
+  y_label: "Amplitude",
+  x_unit: "s",
+  style: {
+    figure_size: [8, 5], dpi: 150, font_family: "serif", font_size: 12,
+    grid: true, grid_alpha: 0.3,
+    legend: { enabled: true, location: "best" },
+    spines: { enabled: true, width: 1.2, color: "#333" },
+  },
+};
+const DEMO_PLOT_DATA: PlotData = {
+  series: [
+    { name: "sin", x: DEMO_XS, y: DEMO_XS.map((x) => +Math.sin(x).toFixed(4)), color: "#1a1a1a", line_width: 2.0, visible: true },
+    { name: "cos", x: DEMO_XS, y: DEMO_XS.map((x) => +Math.cos(x).toFixed(4)), color: "#c73e3a", line_width: 1.5, visible: true },
+  ],
+};
 
 function Shell() {
   const { t, lang } = useI18n();
@@ -22,6 +46,7 @@ function Shell() {
   const [view, setView] = useState<ViewName>("home");
   const [sel, setSel] = useState<SkillDescriptor | null>(null);
   const [recent, setRecent] = useState<RecentItem[]>([]);
+  const [editorParams, setEditorParams] = useState<{ spec: PlotSpec; data: PlotData } | null>(null);
 
   const [dangerSandbox, setDangerSandbox] = useState(false);
   const [defaultNetwork, setDefaultNetwork] = useState(true);
@@ -71,10 +96,21 @@ function Shell() {
   }
 
   function openRecent(item: RecentItem) {
-    // 当前运行/最近一次:直接回到该视图,不重跑(避免重复执行)
     if (item.id === activeRunIdRef.current) { setView("run"); return; }
-    // 其它历史项:用同一配置重跑该任务(每个条目都可用)
     startLaunch(item.spec);
+  }
+
+  function openEditor() {
+    setEditorParams(run.plotParams ?? { spec: DEMO_PLOT_SPEC, data: DEMO_PLOT_DATA });
+  }
+
+  // 图表微调:全屏接管(ChartEditor 自带返回按钮)
+  if (editorParams) {
+    return (
+      <div style={{ height: "100vh", display: "flex" }}>
+        <ChartEditor initialSpec={editorParams.spec} initialData={editorParams.data} onBack={() => setEditorParams(null)} />
+      </div>
+    );
   }
 
   return (
@@ -90,7 +126,7 @@ function Shell() {
         onOpenRecent={openRecent}
       />
 
-      {view === "run" && run.active && <RunView run={run} />}
+      {view === "run" && run.active && <RunView run={run} onOpenEditor={openEditor} />}
 
       {view === "newtask" && sel && (
         <TaskConfig skill={sel} defaultNetwork={defaultNetwork} onBack={() => setView("home")} onLaunch={startLaunch} />

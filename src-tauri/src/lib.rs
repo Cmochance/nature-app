@@ -70,10 +70,16 @@ fn check_doctor() -> DoctorReport {
         &["soffice", "libreoffice"],
         &["/Applications/LibreOffice.app/Contents/MacOS/soffice"],
     );
-    let pandoc = find_bin(&["pandoc"], &["/opt/homebrew/bin/pandoc", "/usr/local/bin/pandoc"]);
+    let pandoc = find_bin(
+        &["pandoc"],
+        &["/opt/homebrew/bin/pandoc", "/usr/local/bin/pandoc"],
+    );
     let pdflatex = find_bin(
         &["pdflatex"],
-        &["/Library/TeX/texbin/pdflatex", "/usr/local/texlive/bin/pdflatex"],
+        &[
+            "/Library/TeX/texbin/pdflatex",
+            "/usr/local/texlive/bin/pdflatex",
+        ],
     );
     let tools = vec![
         ToolCheck {

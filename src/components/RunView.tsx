@@ -8,7 +8,7 @@ import ArtifactPanel from "./ArtifactPanel";
 
 export type { LaunchSpec } from "../useRun";
 
-export default function RunView({ run }: { run: RunController }) {
+export default function RunView({ run, onOpenEditor }: { run: RunController; onOpenEditor: () => void }) {
   const { t, lang } = useI18n();
   const [followup, setFollowup] = useState("");
   const streamRef = useRef<HTMLDivElement | null>(null);
@@ -41,6 +41,11 @@ export default function RunView({ run }: { run: RunController }) {
               {run.running && <span className="live-dot" />}
               {run.running ? t("status.running") : t("status.done")}
             </span>
+            {skillId === "nature-figure" && (
+              <button className="ce-launch" onClick={onOpenEditor} title={run.plotParams ? undefined : (lang === "zh" ? "用演示数据打开(任务导出 plot_spec/plot_data 后用真实数据)" : "Opens with demo data (uses real data once the task exports plot_spec/plot_data)")}>
+                <Icon name="sliders" />{lang === "zh" ? "图表微调" : "Chart editor"}
+              </button>
+            )}
             <div className="task-meta">
               {run.active && (
                 <span className="task-path" title={run.active.workdir}>

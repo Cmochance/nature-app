@@ -1,7 +1,7 @@
 name: Test
 
-# 快速测试:每次 push / PR 跑 Rust 单测 + 前端类型检查/构建。
-# 跑在 macOS(本项目的主平台,无需额外系统依赖)。
+# CI:前端(类型检查 + 构建)与 Rust(fmt + clippy + 单测)并行。
+# Rust job 跑 macOS(本项目主平台,含 macOS 专属代码);前端纯 JS,跑 ubuntu 更快省时。
 on:
   push:
     branches: [main]
@@ -12,8 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: macos-latest
+  frontend:
+    name: Frontend — type-check + build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -28,19 +29,36 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Setup Rust
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check (tsc --noEmit)
+        run: pnpm exec tsc --noEmit
+
+      - name: Build (tsc + vite)
+        run: pnpm build
+
+  rust:
+    name: Rust — fmt + clippy + test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust (+ rustfmt, clippy)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - name: Install JS deps
-        run: pnpm install --frozen-lockfile
+      - name: Format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
 
-      - name: Rust unit tests
+      - name: Clippy (deny warnings)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+
+      - name: Unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Frontend type-check + build
-        run: pnpm build
