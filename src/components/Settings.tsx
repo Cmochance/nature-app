@@ -1,46 +1,44 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { DoctorReport } from "../types/engine";
 import { useI18n, type LangPref } from "../i18n";
 import { useTheme, type ThemePref } from "../theme";
 import { Icon } from "../icons";
+import type { DoctorController } from "../useDoctor";
 
 interface Props {
+  doctor: DoctorController;
   dangerSandbox: boolean;
   onDangerChange: (v: boolean) => void;
   defaultNetwork: boolean;
   onNetworkChange: (v: boolean) => void;
 }
 
-export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork, onNetworkChange }: Props) {
-  const { t, pref: langPref, setPref: setLangPref } = useI18n();
+export default function Settings({ doctor, dangerSandbox, onDangerChange, defaultNetwork, onNetworkChange }: Props) {
+  const { t, lang, pref: langPref, setPref: setLangPref } = useI18n();
   const { pref: themePref, setPref: setThemePref } = useTheme();
 
-  const [doctor, setDoctor] = useState<DoctorReport | null>(null);
-  const [setup, setSetup] = useState<{ skills: string; pyenv: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
-
   const [email, setEmail] = useState("");
-  const [acRegistered, setAcRegistered] = useState<boolean | null>(null);
   const [acBusy, setAcBusy] = useState(false);
   const [acErr, setAcErr] = useState<string | null>(null);
+  const [mcpOpen, setMcpOpen] = useState(false);
 
-  function refresh() {
-    invoke<DoctorReport>("check_doctor").then(setDoctor).catch(() => setDoctor(null));
-    invoke<boolean>("check_academic_search").then(setAcRegistered).catch(() => setAcRegistered(null));
-    invoke<{ skills: string; pyenv: string }>("get_setup_status").then(setSetup).catch(() => setSetup(null));
-  }
-  useEffect(() => refresh(), []);
+  // 首次进设置异步探测一次(check_doctor + get_setup_status);之后读 App 层缓存,秒开不重探
+  useEffect(() => { doctor.ensureLoaded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const rep = doctor.doctor;
+  const setup = doctor.setup;
+  const acRegistered = doctor.acRegistered;
   const setupFailed = !!setup && (setup.skills.includes("失败") || setup.pyenv.includes("失败") || /fail|error/i.test(setup.skills) || /fail|error/i.test(setup.pyenv));
+  const recheckLabel = lang === "zh" ? "重新检测" : "Re-check";
 
   async function prepare() {
     setPreparing(true);
     try { await invoke("prepare_pyenv"); } catch { /* shown via doctor */ }
     setPreparing(false);
-    refresh();
+    doctor.refresh();
   }
 
   async function syncSkills() {
@@ -55,6 +53,12 @@ export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork
     setSyncing(false);
   }
 
+  function toggleMcp() {
+    const next = !mcpOpen;
+    setMcpOpen(next);
+    if (next) doctor.checkAcademic(); // 仅在展开时才派生 codex mcp list
+  }
+
   async function registerAcademic() {
     const em = email.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
@@ -65,7 +69,7 @@ export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork
     setAcErr(null);
     try {
       await invoke("register_academic_search", { email: em });
-      setAcRegistered(true);
+      doctor.setAcRegistered(true);
     } catch (e) {
       setAcErr(String(e));
     }
@@ -97,28 +101,31 @@ export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork
             <span className="p-ico"><Icon name="bolt" /></span>
             <div><h3>{t("settings.codexEngine")}</h3><div className="p-sub">{t("settings.codexSub")}</div></div>
             <span className="spacer" />
-            {doctor && <span className={"status-pill " + (doctor.engine.loggedIn ? "done" : "err")}>{doctor.engine.loggedIn ? t("status.ready") : t("status.notSignedIn")}</span>}
+            <button className="pick-btn" onClick={() => doctor.refresh()} disabled={doctor.loading} title={recheckLabel}>
+              <Icon name="refresh" />{doctor.loading ? t("settings.checking") : recheckLabel}
+            </button>
+            {rep && <span className={"status-pill " + (rep.engine.loggedIn ? "done" : "err")}>{rep.engine.loggedIn ? t("status.ready") : t("status.notSignedIn")}</span>}
           </div>
           <div className="panel-body">
-            {!doctor ? <div className="dr"><span className="dim">{t("settings.checking")}</span></div> : <>
-              <div className="dr">{dot(doctor.engine.loggedIn)}<span className="k">{t("settings.signin")}</span><span className="v">{doctor.engine.loggedIn ? t("status.signedIn") : t("settings.notSignedInHint")}</span></div>
-              <div className="dr">{dot(!!doctor.engine.version)}<span className="k">{t("settings.version")}</span><span className="v">{doctor.engine.version ?? t("settings.notFound")}</span></div>
-              <div className="dr">{dot(true)}<span className="k">{t("settings.path")}</span><span className="v muted">{doctor.engine.bin}</span></div>
+            {!rep ? <div className="dr"><span className="dim">{t("settings.checking")}</span></div> : <>
+              <div className="dr">{dot(rep.engine.loggedIn)}<span className="k">{t("settings.signin")}</span><span className="v">{rep.engine.loggedIn ? t("status.signedIn") : t("settings.notSignedInHint")}</span></div>
+              <div className="dr">{dot(!!rep.engine.version)}<span className="k">{t("settings.version")}</span><span className="v">{rep.engine.version ?? t("settings.notFound")}</span></div>
+              <div className="dr">{dot(true)}<span className="k">{t("settings.path")}</span><span className="v muted">{rep.engine.bin}</span></div>
             </>}
           </div>
         </div>
 
         {/* Python(uv) */}
-        {doctor && (
+        {rep && (
           <div className="panel">
             <div className="panel-head"><span className="p-ico"><Icon name="code" /></span><div><h3>{t("settings.pythonEnv")}</h3><div className="p-sub">{t("settings.pythonSub")}</div></div></div>
             <div className="panel-body">
-              <div className="dr">{dot(doctor.pyenv.ready)}<span className="k">venv</span><span className="v muted">{doctor.pyenv.venv}</span></div>
-              <div className="dr">{dot(!!doctor.pyenv.python)}<span className="k">{t("settings.python")}</span><span className="v">{doctor.pyenv.python ?? t("settings.notFound")}</span></div>
-              <div className="dr">{dot(!!doctor.pyenv.uv)}<span className="k">uv</span><span className="v muted">{doctor.pyenv.uv ?? t("settings.notFound")}</span></div>
+              <div className="dr">{dot(rep.pyenv.ready)}<span className="k">venv</span><span className="v muted">{rep.pyenv.venv}</span></div>
+              <div className="dr">{dot(!!rep.pyenv.python)}<span className="k">{t("settings.python")}</span><span className="v">{rep.pyenv.python ?? t("settings.notFound")}</span></div>
+              <div className="dr">{dot(!!rep.pyenv.uv)}<span className="k">uv</span><span className="v muted">{rep.pyenv.uv ?? t("settings.notFound")}</span></div>
             </div>
             <div className="panel-foot">
-              <button className="pick-btn" onClick={prepare} disabled={preparing || !doctor.pyenv.uv}>
+              <button className="pick-btn" onClick={prepare} disabled={preparing || !rep.pyenv.uv}>
                 <Icon name="refresh" />{preparing ? t("settings.installing") : t("settings.installDeps")}
               </button>
               <span className="p-sub">{t("settings.installHint")}</span>
@@ -127,11 +134,11 @@ export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork
         )}
 
         {/* 外部工具 */}
-        {doctor && doctor.tools.length > 0 && (
+        {rep && rep.tools.length > 0 && (
           <div className="panel">
             <div className="panel-head"><span className="p-ico"><Icon name="wrench" /></span><div><h3>{t("settings.externalTools")}</h3><div className="p-sub">{t("settings.toolsSub")}</div></div></div>
             <div className="panel-body">
-              {doctor.tools.map((tool) => (
+              {rep.tools.map((tool) => (
                 <div className="dr" key={tool.name}>{dot(tool.ok)}<span className="k">{tool.name}</span><span className="v muted">{tool.path ?? tool.hint ?? t("settings.notFound")}</span></div>
               ))}
             </div>
@@ -147,14 +154,24 @@ export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork
           </div>
         </div>
 
-        {/* 文献检索 MCP */}
+        {/* 文献检索 MCP(折叠,展开时才查 codex mcp list)*/}
         <div className="panel">
-          <div className="panel-head"><span className="p-ico"><Icon name="search" /></span><div><h3>{t("settings.litMcp")}</h3><div className="p-sub">academic-search · arXiv / Crossref / PubMed</div></div><span className="spacer" />{acRegistered !== null && <span className={"status-pill " + (acRegistered ? "done" : "err")}>{acRegistered ? t("settings.registered") : t("settings.notRegistered")}</span>}</div>
-          <div className="panel-foot">
-            <input className="refine-input" type="email" style={{ flex: "1 1 220px", border: "1px solid var(--border)", borderRadius: "var(--radius-xs)", background: "var(--bg)", color: "var(--text)", padding: "8px 10px", fontSize: 12.5 }} placeholder={t("settings.emailPh")} value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button className="pick-btn" onClick={registerAcademic} disabled={acBusy || !email.trim()}>{acBusy ? t("settings.registering") : acRegistered ? t("settings.reRegister") : t("settings.registerMcp")}</button>
-            {acErr && <span className="p-sub warn-text">{acErr}</span>}
+          <div className="panel-head" style={{ cursor: "pointer" }} onClick={toggleMcp}>
+            <span className="p-ico"><Icon name="search" /></span>
+            <div><h3>{t("settings.litMcp")}</h3><div className="p-sub">academic-search · arXiv / Crossref / PubMed</div></div>
+            <span className="spacer" />
+            {mcpOpen && (doctor.acChecking
+              ? <span className="p-sub">{t("settings.checking")}</span>
+              : acRegistered !== null && <span className={"status-pill " + (acRegistered ? "done" : "err")}>{acRegistered ? t("settings.registered") : t("settings.notRegistered")}</span>)}
+            <Icon name={mcpOpen ? "chevronDown" : "chevronRight"} />
           </div>
+          {mcpOpen && (
+            <div className="panel-foot">
+              <input className="refine-input" type="email" style={{ flex: "1 1 220px", border: "1px solid var(--border)", borderRadius: "var(--radius-xs)", background: "var(--bg)", color: "var(--text)", padding: "8px 10px", fontSize: 12.5 }} placeholder={t("settings.emailPh")} value={email} onChange={(e) => setEmail(e.target.value)} />
+              <button className="pick-btn" onClick={registerAcademic} disabled={acBusy || !email.trim()}>{acBusy ? t("settings.registering") : acRegistered ? t("settings.reRegister") : t("settings.registerMcp")}</button>
+              {acErr && <span className="p-sub warn-text">{acErr}</span>}
+            </div>
+          )}
         </div>
 
         {/* 偏好 */}
