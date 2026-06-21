@@ -62,3 +62,11 @@ jobs:
 
       - name: Unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # 聚合门禁:满足分支保护要求的必需 check「test」(两个并行 job 都绿才绿)。
+  test:
+    name: test
+    needs: [frontend, rust]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "frontend + rust 均通过"
