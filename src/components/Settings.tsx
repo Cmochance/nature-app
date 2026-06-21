@@ -1,20 +1,27 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DoctorReport } from "../types/engine";
+import { useI18n, type LangPref } from "../i18n";
+import { useTheme, type ThemePref } from "../theme";
+import { Icon } from "../icons";
 
-export default function Settings({
-  dangerSandbox,
-  onDangerChange,
-}: {
+interface Props {
   dangerSandbox: boolean;
   onDangerChange: (v: boolean) => void;
-}) {
+  defaultNetwork: boolean;
+  onNetworkChange: (v: boolean) => void;
+}
+
+export default function Settings({ dangerSandbox, onDangerChange, defaultNetwork, onNetworkChange }: Props) {
+  const { t, pref: langPref, setPref: setLangPref } = useI18n();
+  const { pref: themePref, setPref: setThemePref } = useTheme();
+
   const [doctor, setDoctor] = useState<DoctorReport | null>(null);
   const [setup, setSetup] = useState<{ skills: string; pyenv: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
-  const [prepErr, setPrepErr] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  // academic-search MCP
   const [email, setEmail] = useState("");
   const [acRegistered, setAcRegistered] = useState<boolean | null>(null);
   const [acBusy, setAcBusy] = useState(false);
@@ -27,16 +34,23 @@ export default function Settings({
   }
   useEffect(() => refresh(), []);
 
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const setupFailed = !!setup && (setup.skills.includes("失败") || setup.pyenv.includes("失败") || /fail|error/i.test(setup.skills) || /fail|error/i.test(setup.pyenv));
+
+  async function prepare() {
+    setPreparing(true);
+    try { await invoke("prepare_pyenv"); } catch { /* shown via doctor */ }
+    setPreparing(false);
+    refresh();
+  }
+
   async function syncSkills() {
     setSyncing(true);
     setSyncMsg(null);
     try {
       const n = await invoke<number>("install_skills");
-      setSyncMsg(n === 0 ? "已是最新(pinned 版未变)" : `已同步 ${n} 个目录到 ~/.codex/skills/`);
+      setSyncMsg(n === 0 ? t("settings.upToDate") : t("settings.syncedN", { n }));
     } catch (e) {
-      setSyncMsg("失败:" + String(e));
+      setSyncMsg(t("settings.opFailed", { msg: String(e) }));
     }
     setSyncing(false);
   }
@@ -44,13 +58,13 @@ export default function Settings({
   async function registerAcademic() {
     const em = email.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
-      setAcErr("请输入有效邮箱(用于 PubMed 礼貌标识)");
+      setAcErr(t("settings.emailInvalid"));
       return;
     }
     setAcBusy(true);
     setAcErr(null);
     try {
-      await invoke("register_academic_search", { email: email.trim() });
+      await invoke("register_academic_search", { email: em });
       setAcRegistered(true);
     } catch (e) {
       setAcErr(String(e));
@@ -58,127 +72,134 @@ export default function Settings({
     setAcBusy(false);
   }
 
-  async function prepare() {
-    setPreparing(true);
-    setPrepErr(null);
-    try {
-      await invoke("prepare_pyenv");
-    } catch (e) {
-      setPrepErr(String(e));
-    }
-    setPreparing(false);
-    refresh();
-  }
-
-  function toggleDanger(e: React.ChangeEvent<HTMLInputElement>) {
-    const next = e.target.checked;
-    if (next) {
-      const ok = window.confirm(
-        "高级:全放开沙箱(danger-full-access)\n\ncodex 将不受文件/网络沙箱限制地执行命令。仅在你完全信任任务时启用。确定开启?"
-      );
-      if (!ok) return;
-    }
+  function toggleDanger(next: boolean) {
+    if (next && !window.confirm(t("settings.dangerConfirm"))) return;
     onDangerChange(next);
   }
 
-  const row = (label: string, ok: boolean, detail?: string | null, hint?: string | null) => (
-    <div className="doctor-row">
-      <span className={ok ? "dot ok" : "dot err"} />
-      <span className="d-label">{label}</span>
-      <span className="d-detail">{detail || (ok ? "可用" : "未检测到")}</span>
-      {!ok && hint && <span className="d-hint">{hint}</span>}
-    </div>
-  );
+  const dot = (ok: boolean) => <span className={"dot " + (ok ? "ok" : "err")} />;
 
   return (
-    <section className="settings">
-      <h2>环境体检 / 设置</h2>
+    <div className="scroll-area">
+      <div className="page narrow">
+        <span className="eyebrow" style={{ display: "block", marginBottom: 8 }}>{t("settings.eyebrow")}</span>
+        <h1 className="h-title" style={{ fontSize: 24, margin: "0 0 22px" }}>{t("settings.title")}</h1>
 
-      {setup && (setup.skills.includes("失败") || setup.pyenv.includes("失败")) && (
-        <div className="setup-warn">
-          首启自举有失败:Skills「{setup.skills || "…"}」/ Python「{setup.pyenv || "…"}」。
-          可在下方"Skills 同步"/"准备 Python 环境"重试。
-        </div>
-      )}
-
-      {!doctor ? (
-        <div className="dim">体检中…</div>
-      ) : (
-        <>
-          <div className="doctor-block">
-            <h3>引擎</h3>
-            {row("Codex", doctor.engine.loggedIn, doctor.engine.version)}
-            {row("登录状态", doctor.engine.loggedIn, doctor.engine.loggedIn ? "已登录" : "未登录", "运行 codex login")}
+        {setupFailed && (
+          <div className="load-error" style={{ borderColor: "var(--warn)", background: "var(--warn-soft)", color: "var(--warn)", marginBottom: 16 }}>
+            {t("settings.setupWarn")}
           </div>
-
-          <div className="doctor-block">
-            <h3>Python 隔离环境(uv)</h3>
-            {row("uv", !!doctor.pyenv.uv, doctor.pyenv.uv, "安装 uv: curl -LsSf https://astral.sh/uv/install.sh | sh")}
-            {row("隔离 venv", doctor.pyenv.ready, doctor.pyenv.ready ? doctor.pyenv.python ?? "就绪" : "未就绪")}
-            {!doctor.pyenv.ready && (
-              <div className="prep">
-                <button className="primary" onClick={prepare} disabled={preparing || !doctor.pyenv.uv}>
-                  {preparing ? "正在准备(下载 wheels)…" : "准备 Python 环境"}
-                </button>
-                {prepErr && <div className="err">失败:{prepErr}</div>}
-              </div>
-            )}
-          </div>
-
-          <div className="doctor-block">
-            <h3>系统二进制(可选)</h3>
-            {doctor.tools.map((t) => (
-              <div key={t.name}>{row(t.name, t.ok, t.path, t.hint)}</div>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="doctor-block">
-        <h3>Skills 同步</h3>
-        <p className="dim small">把打包的 nature-skills(pinned 版)同步到 ~/.codex/skills/,供 codex 加载。</p>
-        <div className="row">
-          <button onClick={syncSkills} disabled={syncing}>
-            {syncing ? "同步中…" : "检查 / 同步 skills"}
-          </button>
-          {syncMsg && <span className="dim small">{syncMsg}</span>}
-        </div>
-      </div>
-
-      <div className="doctor-block">
-        <h3>文献检索(academic-search MCP)</h3>
-        {row(
-          "MCP 注册",
-          acRegistered === true,
-          acRegistered === null ? "检测中…" : acRegistered ? "已注册" : "未注册"
         )}
-        <p className="dim small">首版仅免费源(arXiv / Crossref / PubMed),只需一个邮箱(PubMed 礼貌用)。</p>
-        <div className="row">
-          <input
-            className="refine-input"
-            type="email"
-            placeholder="you@example.com(PubMed 邮箱)"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button className="primary" onClick={registerAcademic} disabled={acBusy || !email.trim()}>
-            {acBusy ? "注册中…" : acRegistered ? "重新注册" : "注册 MCP"}
-          </button>
-        </div>
-        {acErr && <div className="err small">失败:{acErr}</div>}
-      </div>
 
-      <div className="doctor-block">
-        <h3>执行安全</h3>
-        <label className="danger-toggle">
-          <input type="checkbox" checked={dangerSandbox} onChange={toggleDanger} />
-          <span>
-            高级:全放开沙箱(danger-full-access)
-            {dangerSandbox && <span className="warn"> ⚠ 已开启 —— codex 命令不受沙箱限制</span>}
-          </span>
-        </label>
-        <p className="dim small">默认 workspace-write(只能在工作目录内写、默认断网),适合绝大多数任务。</p>
+        {/* Codex 引擎 */}
+        <div className="panel">
+          <div className="panel-head">
+            <span className="p-ico"><Icon name="bolt" /></span>
+            <div><h3>{t("settings.codexEngine")}</h3><div className="p-sub">{t("settings.codexSub")}</div></div>
+            <span className="spacer" />
+            {doctor && <span className={"status-pill " + (doctor.engine.loggedIn ? "done" : "err")}>{doctor.engine.loggedIn ? t("status.ready") : t("status.notSignedIn")}</span>}
+          </div>
+          <div className="panel-body">
+            {!doctor ? <div className="dr"><span className="dim">{t("settings.checking")}</span></div> : <>
+              <div className="dr">{dot(doctor.engine.loggedIn)}<span className="k">{t("settings.signin")}</span><span className="v">{doctor.engine.loggedIn ? t("status.signedIn") : t("settings.notSignedInHint")}</span></div>
+              <div className="dr">{dot(!!doctor.engine.version)}<span className="k">{t("settings.version")}</span><span className="v">{doctor.engine.version ?? t("settings.notFound")}</span></div>
+              <div className="dr">{dot(true)}<span className="k">{t("settings.path")}</span><span className="v muted">{doctor.engine.bin}</span></div>
+            </>}
+          </div>
+        </div>
+
+        {/* Python(uv) */}
+        {doctor && (
+          <div className="panel">
+            <div className="panel-head"><span className="p-ico"><Icon name="code" /></span><div><h3>{t("settings.pythonEnv")}</h3><div className="p-sub">{t("settings.pythonSub")}</div></div></div>
+            <div className="panel-body">
+              <div className="dr">{dot(doctor.pyenv.ready)}<span className="k">venv</span><span className="v muted">{doctor.pyenv.venv}</span></div>
+              <div className="dr">{dot(!!doctor.pyenv.python)}<span className="k">{t("settings.python")}</span><span className="v">{doctor.pyenv.python ?? t("settings.notFound")}</span></div>
+              <div className="dr">{dot(!!doctor.pyenv.uv)}<span className="k">uv</span><span className="v muted">{doctor.pyenv.uv ?? t("settings.notFound")}</span></div>
+            </div>
+            <div className="panel-foot">
+              <button className="pick-btn" onClick={prepare} disabled={preparing || !doctor.pyenv.uv}>
+                <Icon name="refresh" />{preparing ? t("settings.installing") : t("settings.installDeps")}
+              </button>
+              <span className="p-sub">{t("settings.installHint")}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 外部工具 */}
+        {doctor && doctor.tools.length > 0 && (
+          <div className="panel">
+            <div className="panel-head"><span className="p-ico"><Icon name="wrench" /></span><div><h3>{t("settings.externalTools")}</h3><div className="p-sub">{t("settings.toolsSub")}</div></div></div>
+            <div className="panel-body">
+              {doctor.tools.map((tool) => (
+                <div className="dr" key={tool.name}>{dot(tool.ok)}<span className="k">{tool.name}</span><span className="v muted">{tool.path ?? tool.hint ?? t("settings.notFound")}</span></div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 技能同步 */}
+        <div className="panel">
+          <div className="panel-head"><span className="p-ico"><Icon name="refresh" /></span><div><h3>{t("settings.skillSync")}</h3><div className="p-sub">{t("settings.skillSyncSub")}</div></div></div>
+          <div className="panel-foot">
+            <button className="pick-btn" onClick={syncSkills} disabled={syncing}><Icon name="refresh" />{syncing ? t("settings.syncing") : t("settings.checkSync")}</button>
+            {syncMsg && <span className="p-sub">{syncMsg}</span>}
+          </div>
+        </div>
+
+        {/* 文献检索 MCP */}
+        <div className="panel">
+          <div className="panel-head"><span className="p-ico"><Icon name="search" /></span><div><h3>{t("settings.litMcp")}</h3><div className="p-sub">academic-search · arXiv / Crossref / PubMed</div></div><span className="spacer" />{acRegistered !== null && <span className={"status-pill " + (acRegistered ? "done" : "err")}>{acRegistered ? t("settings.registered") : t("settings.notRegistered")}</span>}</div>
+          <div className="panel-foot">
+            <input className="refine-input" type="email" style={{ flex: "1 1 220px", border: "1px solid var(--border)", borderRadius: "var(--radius-xs)", background: "var(--bg)", color: "var(--text)", padding: "8px 10px", fontSize: 12.5 }} placeholder={t("settings.emailPh")} value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button className="pick-btn" onClick={registerAcademic} disabled={acBusy || !email.trim()}>{acBusy ? t("settings.registering") : acRegistered ? t("settings.reRegister") : t("settings.registerMcp")}</button>
+            {acErr && <span className="p-sub warn-text">{acErr}</span>}
+          </div>
+        </div>
+
+        {/* 偏好 */}
+        <div className="panel">
+          <div className="panel-head"><span className="p-ico"><Icon name="sliders" /></span><div><h3>{t("settings.prefs")}</h3><div className="p-sub">{t("settings.prefsSub")}</div></div></div>
+          <div className="panel-body">
+            <div className="pref-row">
+              <div className="pk"><div className="t">{t("settings.language")}</div><div className="d">{t("settings.languageDesc")}</div></div>
+              <div className="seg">
+                {(["zh", "en", "system"] as LangPref[]).map((p) => (
+                  <button key={p} className={langPref === p ? "on" : ""} onClick={() => setLangPref(p)}>
+                    {p === "zh" ? "中文" : p === "en" ? "English" : t("settings.system")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pref-row">
+              <div className="pk"><div className="t">{t("settings.appearance")}</div><div className="d">{t("settings.appearanceDesc")}</div></div>
+              <div className="seg">
+                {(["dark", "light", "system"] as ThemePref[]).map((p) => (
+                  <button key={p} className={themePref === p ? "on" : ""} onClick={() => setThemePref(p)}>
+                    <Icon name={p === "dark" ? "moon" : p === "light" ? "sun" : "gear"} />
+                    {p === "dark" ? t("settings.dark") : p === "light" ? t("settings.light") : t("settings.system")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pref-row">
+              <div className="pk"><div className="t">{t("settings.allowNetDefault")}</div><div className="d">{t("settings.allowNetDesc")}</div></div>
+              <button className={"toggle" + (defaultNetwork ? " on" : "")} onClick={() => onNetworkChange(!defaultNetwork)}><span className="sw" /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* 高级 */}
+        <div className="panel danger-panel">
+          <div className="panel-head"><span className="p-ico"><Icon name="warn" /></span><div><h3>{t("settings.advanced")}</h3><div className="p-sub">{t("settings.advancedSub")}</div></div></div>
+          <div className="panel-body">
+            <div className="pref-row" style={{ borderBottom: 0 }}>
+              <div className="pk"><div className="t"><span className="warn-text">{t("settings.fullSandbox")}</span> (dangerFullAccess)</div><div className="d">{t("settings.fullSandboxDesc")}</div></div>
+              <button className={"toggle" + (dangerSandbox ? " on" : "")} onClick={() => toggleDanger(!dangerSandbox)}><span className="sw" /></button>
+            </div>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

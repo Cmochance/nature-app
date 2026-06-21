@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nature App · 全 App 现代 UI 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* Nature App — 全 App 设计系统 · 视觉锚点 cyanotype(蓝晒) · 深色默认/浅色镜像 */
+:root {
+  --bg:#0E141B; --surface:#141C26; --surface-2:#1A2431; --surface-3:#21303F;
+  --border:#233040; --border-strong:#2E4053;
+  --text:#E8EDF3; --text-dim:#97A4B4; --text-faint:#5C6979;
+  --accent:#5C9CEE; --accent-strong:#7DB4F6; --accent-soft:rgba(92,156,238,.14); --accent-line:rgba(92,156,238,.30);
+  --ok:#4FB47C; --warn:#E0A65C; --err:#E5746B;
+  --ok-soft:rgba(79,180,124,.14); --warn-soft:rgba(224,166,92,.14); --err-soft:rgba(229,116,107,.14);
+  --radius:12px; --radius-sm:8px; --radius-xs:6px;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.28); --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+  --sans:"Inter",-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --display:"Space Grotesk",var(--sans); --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --col-left:260px; --col-right:380px;
+}
+[data-theme="light"] {
+  --bg:#F5F7FB; --surface:#FFFFFF; --surface-2:#EEF2F8; --surface-3:#E4EAF3;
+  --border:#E1E7F0; --border-strong:#CDD7E5;
+  --text:#16202C; --text-dim:#586577; --text-faint:#8C97A6;
+  --accent:#2C62C2; --accent-strong:#1E4DA0; --accent-soft:rgba(44,98,194,.10); --accent-line:rgba(44,98,194,.24);
+  --ok:#1E8C4E; --warn:#B07320; --err:#C6463D;
+  --ok-soft:rgba(30,140,78,.10); --warn-soft:rgba(176,115,32,.10); --err-soft:rgba(198,70,61,.10);
+  --shadow:0 1px 2px rgba(16,32,56,.06),0 10px 28px rgba(16,32,56,.08); --shadow-sm:0 1px 2px rgba(16,32,56,.07);
+}
+* { box-sizing:border-box; }
+html,body { height:100%; }
+body { margin:0; font-family:var(--sans); background:var(--bg); color:var(--text); font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+::selection { background:var(--accent-soft); }
+button { font:inherit; color:inherit; cursor:pointer; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--radius-xs); }
+*::-webkit-scrollbar { width:9px; height:9px; }
+*::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:99px; border:2px solid transparent; background-clip:padding-box; }
+*::-webkit-scrollbar-thumb:hover { background:var(--text-faint); background-clip:padding-box; }
+
+/* shell */
+.shell { display:grid; grid-template-columns:var(--col-left) minmax(0,1fr); height:100vh; overflow:hidden; }
+.shell[data-view="run"] { grid-template-columns:var(--col-left) minmax(0,1fr) var(--col-right); }
+.shell[data-view="run"].collapsed-right { grid-template-columns:var(--col-left) minmax(0,1fr) 0; }
+.main { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg); }
+.view { display:none; flex-direction:column; min-height:0; flex:1; }
+.shell[data-view="home"] .view-home,
+.shell[data-view="newtask"] .view-newtask,
+.shell[data-view="run"] .view-run,
+.shell[data-view="settings"] .view-settings { display:flex; }
+.artifacts { display:none; }
+.shell[data-view="run"]:not(.collapsed-right) .artifacts { display:flex; }
+
+/* 左栏 */
+.sidebar { display:flex; flex-direction:column; min-height:0; background:var(--surface); border-right:1px solid var(--border); }
+.brand { display:flex; align-items:center; gap:10px; padding:16px 16px 12px; }
+.brand-mark { width:28px; height:28px; border-radius:8px; background:radial-gradient(120% 120% at 30% 20%,var(--accent-strong),var(--accent) 55%,#1A3A6B 100%); display:grid; place-items:center; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 2px 8px rgba(20,40,80,.4); }
+.brand-mark svg { width:16px; height:16px; display:block; }
+.brand-name { font-family:var(--display); font-weight:600; font-size:15px; letter-spacing:-.01em; }
+.brand-name .dim { color:var(--text-faint); font-weight:500; }
+.new-task { margin:4px 12px 12px; display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--accent-soft); color:var(--accent-strong); border:1px solid var(--accent-line); border-radius:var(--radius-sm); font-weight:600; font-size:13px; width:calc(100% - 24px); transition:background .15s ease,transform .05s ease; }
+.new-task:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); }
+.new-task:active { transform:translateY(1px); }
+.new-task .kbd { margin-left:auto; }
+.search { margin:0 12px 8px; display:flex; align-items:center; gap:8px; width:calc(100% - 24px); padding:7px 10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-dim); font-size:13px; }
+.search:hover { border-color:var(--border-strong); }
+.search .kbd { margin-left:auto; }
+.kbd { font-family:var(--mono); font-size:10.5px; font-weight:500; color:var(--text-faint); background:var(--surface-3); border:1px solid var(--border); border-radius:5px; padding:1px 5px; line-height:1.4; }
+.nav { flex:1; overflow-y:auto; padding:8px 8px 16px; }
+.nav-group + .nav-group { margin-top:14px; }
+.nav-label { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); padding:4px 10px 6px; display:flex; align-items:center; justify-content:space-between; }
+.nav-label .count { font-family:var(--mono); font-weight:500; }
+.nav-item { display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; border:0; background:none; border-radius:var(--radius-xs); text-align:left; color:var(--text-dim); font-size:13px; transition:background .12s ease,color .12s ease; }
+.nav-item:hover { background:var(--surface-2); color:var(--text); }
+.nav-item.active { background:var(--accent-soft); color:var(--text); }
+.nav-item.active .nav-ico { color:var(--accent-strong); }
+.nav-item.active .nav-dot { background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.nav-ico { display:inline-flex; color:var(--text-faint); flex-shrink:0; }
+.nav-ico svg { width:16px; height:16px; }
+.nav-dot { width:7px; height:7px; border-radius:99px; flex-shrink:0; background:var(--text-faint); }
+.nav-dot.stable { background:var(--ok); } .nav-dot.beta { background:var(--accent); } .nav-dot.draft { background:var(--text-faint); }
+.nav-item .nav-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nav-item .nav-zh { font-weight:600; color:inherit; }
+.nav-item .nav-id { font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-left:6px; }
+.nav-item.run-state .nav-text { display:flex; flex-direction:column; gap:1px; }
+.nav-item .nav-sub { font-size:11px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-dot { width:7px; height:7px; border-radius:99px; background:var(--accent); flex-shrink:0; box-shadow:0 0 0 0 var(--accent); animation:pulse-dot 1.8s ease-out infinite; }
+@keyframes pulse-dot { 0%{box-shadow:0 0 0 0 var(--accent-soft);} 70%{box-shadow:0 0 0 6px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
+.engine-bar { border-top:1px solid var(--border); padding:10px 12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
+.engine-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); }
+.engine-row .dot { width:7px; height:7px; border-radius:99px; }
+.engine-row .dot.ok { background:var(--ok); box-shadow:0 0 0 3px var(--ok-soft); }
+.engine-ver { font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-left:auto; }
+.engine-tools { display:flex; gap:8px; }
+.tool-chip { font-size:10.5px; font-family:var(--mono); color:var(--text-dim); display:inline-flex; align-items:center; gap:4px; }
+.tool-chip .dot { width:5px; height:5px; border-radius:99px; background:var(--ok); }
+.engine-actions { display:flex; gap:6px; margin-top:2px; }
+.icon-btn { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--border); background:var(--surface-2); border-radius:var(--radius-xs); color:var(--text-dim); transition:background .12s ease,color .12s ease,border-color .12s ease; }
+.icon-btn:hover { background:var(--surface-3); color:var(--text); border-color:var(--border-strong); }
+.icon-btn svg { width:15px; height:15px; }
+.icon-btn.wide { width:auto; padding:0 10px; gap:6px; font-size:12px; }
+
+/* 通用 */
+.scroll-area { flex:1; overflow-y:auto; }
+.page { max-width:920px; margin:0 auto; padding:32px 32px 48px; width:100%; }
+.eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+.h-title { font-family:var(--display); font-weight:600; letter-spacing:-.02em; }
+.status-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:99px; font-size:11.5px; font-weight:600; }
+.status-pill.running { background:var(--accent-soft); color:var(--accent-strong); }
+.status-pill.running .live-dot { background:var(--accent-strong); }
+.status-pill.done { background:var(--ok-soft); color:var(--ok); }
+.badge { font-size:10px; font-weight:600; padding:2px 7px; border-radius:99px; letter-spacing:.02em; }
+.badge.stable { background:var(--ok-soft); color:var(--ok); }
+.badge.beta { background:var(--accent-soft); color:var(--accent-strong); }
+.badge.draft { background:var(--surface-3); color:var(--text-faint); }
+.composer { border:1px solid var(--border-strong); border-radius:14px; background:var(--surface); box-shadow:var(--shadow-sm); transition:border-color .15s ease,box-shadow .15s ease; }
+.composer:focus-within { border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-soft); }
+.composer textarea { width:100%; border:0; background:none; resize:none; padding:13px 14px 4px; font-family:var(--sans); font-size:14px; color:var(--text); line-height:1.5; }
+.composer textarea::placeholder { color:var(--text-faint); }
+.composer textarea:focus { outline:none; }
+.composer-bar { display:flex; align-items:center; gap:8px; padding:6px 8px 8px 12px; flex-wrap:wrap; }
+.toggle { display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); padding:4px 8px; border-radius:var(--radius-xs); border:1px solid transparent; }
+.toggle:hover { background:var(--surface-2); }
+.toggle .sw { width:28px; height:16px; border-radius:99px; background:var(--surface-3); position:relative; border:1px solid var(--border); transition:background .15s ease; }
+.toggle .sw::after { content:""; position:absolute; top:1px; left:1px; width:12px; height:12px; border-radius:99px; background:var(--text-faint); transition:transform .15s ease,background .15s ease; }
+.toggle.on .sw { background:var(--accent); border-color:var(--accent); }
+.toggle.on .sw::after { transform:translateX(12px); background:#fff; }
+.toggle svg { width:13px; height:13px; }
+.composer-bar .spacer { flex:1; }
+.btn-ghost { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); padding:5px 9px; border:1px solid var(--border); background:var(--surface-2); border-radius:var(--radius-xs); }
+.btn-ghost:hover { color:var(--text); border-color:var(--border-strong); }
+.btn-ghost svg { width:13px; height:13px; }
+.send { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:var(--radius-sm); font-weight:600; font-size:13px; transition:filter .12s ease,transform .05s ease; }
+.send:hover { filter:brightness(1.08); } .send:active { transform:translateY(1px); }
+.send svg { width:14px; height:14px; }
+
+/* 首页 */
+.hero { text-align:center; padding:18px 0 26px; }
+.hero .eyebrow { display:block; margin-bottom:12px; }
+.hero h1 { font-family:var(--display); font-weight:600; font-size:30px; letter-spacing:-.025em; margin:0 0 10px; line-height:1.15; }
+.hero h1 .grad { background:linear-gradient(100deg,var(--accent-strong),var(--accent)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero p { color:var(--text-dim); margin:0; font-size:14.5px; }
+.home-composer { max-width:640px; margin:0 auto 8px; }
+.sect { margin-top:34px; }
+.sect-head { display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
+.sect-head h2 { font-family:var(--display); font-weight:600; font-size:15px; margin:0; }
+.sect-head .more { margin-left:auto; font-size:12px; color:var(--text-dim); }
+.sect-head .more:hover { color:var(--accent-strong); }
+.skill-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(218px,1fr)); gap:12px; }
+.skill-card { text-align:left; display:flex; flex-direction:column; gap:7px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); transition:border-color .14s ease,transform .06s ease,background .14s ease; min-height:112px; }
+.skill-card:hover { border-color:var(--accent-line); background:var(--surface-2); transform:translateY(-1px); }
+.skill-card:active { transform:translateY(0); }
+.sc-head { display:flex; align-items:center; gap:9px; }
+.sc-ico { width:30px; height:30px; border-radius:var(--radius-xs); display:grid; place-items:center; background:var(--accent-soft); color:var(--accent-strong); flex-shrink:0; }
+.sc-ico svg { width:16px; height:16px; }
+.sc-zh { font-weight:600; font-size:14px; }
+.sc-id { font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-top:1px; }
+.sc-badge { margin-left:auto; }
+.sc-desc { font-size:12px; color:var(--text-dim); line-height:1.5; margin:0; }
+.group-label { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--text-faint); margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
+.group-label::after { content:""; flex:1; height:1px; background:var(--border); }
+.recent-list { display:flex; flex-direction:column; gap:6px; }
+.recent-row { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:11px 13px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); transition:border-color .12s ease,background .12s ease; }
+.recent-row:hover { border-color:var(--accent-line); background:var(--surface-2); }
+.recent-row .r-ico { width:30px; height:30px; border-radius:var(--radius-xs); display:grid; place-items:center; background:var(--surface-2); color:var(--text-dim); flex-shrink:0; }
+.recent-row .r-ico svg { width:15px; height:15px; }
+.recent-row .r-main { flex:1; min-width:0; }
+.recent-row .r-title { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.recent-row .r-sub { font-size:11.5px; color:var(--text-faint); margin-top:1px; }
+.recent-row .r-time { font-family:var(--mono); font-size:11px; color:var(--text-faint); flex-shrink:0; }
+
+/* 新建任务 */
+.subbar { display:flex; align-items:center; gap:12px; padding:14px 24px; border-bottom:1px solid var(--border); }
+.back-btn { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--text-dim); border:0; background:none; padding:4px 6px; border-radius:var(--radius-xs); }
+.back-btn:hover { color:var(--text); background:var(--surface-2); }
+.back-btn svg { width:15px; height:15px; }
+.subbar .skill-chip { display:inline-flex; align-items:center; gap:8px; padding:5px 11px 5px 9px; background:var(--surface-2); border:1px solid var(--border); border-radius:99px; font-size:12.5px; font-weight:600; }
+.subbar .skill-chip .nav-dot { background:var(--accent); }
+.subbar .skill-chip .skill-id { font-family:var(--mono); font-weight:500; font-size:11.5px; color:var(--text-faint); }
+.cfg-card { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:6px 18px 18px; margin-bottom:16px; }
+.cfg-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); }
+.cfg-row:last-child { border-bottom:0; }
+.cfg-key { width:96px; font-size:12.5px; font-weight:600; color:var(--text-dim); flex-shrink:0; }
+.cfg-val { flex:1; min-width:0; display:flex; align-items:center; gap:10px; }
+.pick-btn { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border:1px solid var(--border-strong); background:var(--surface-2); border-radius:var(--radius-sm); font-size:12.5px; color:var(--text); }
+.pick-btn:hover { border-color:var(--accent-line); background:var(--surface-3); }
+.pick-btn svg { width:14px; height:14px; color:var(--text-dim); }
+.path-text { font-family:var(--mono); font-size:12px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.path-text.empty { color:var(--text-faint); }
+.axis-label { font-size:12.5px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.axis-label .req { color:var(--err); font-weight:600; font-size:10px; background:var(--err-soft); padding:1px 6px; border-radius:99px; }
+.axis-label .multi { color:var(--text-faint); font-weight:500; font-size:11px; }
+.chips { display:flex; flex-wrap:wrap; gap:7px; }
+.chip { font-size:12.5px; padding:6px 13px; border:1px solid var(--border-strong); border-radius:99px; background:var(--surface-2); color:var(--text-dim); transition:all .12s ease; }
+.chip:hover { color:var(--text); border-color:var(--accent-line); }
+.chip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.atlas { margin-top:6px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.atlas > summary { list-style:none; cursor:pointer; padding:10px 13px; font-size:12.5px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:8px; }
+.atlas > summary::-webkit-details-marker { display:none; }
+.atlas > summary:hover { color:var(--text); }
+.atlas > summary .chevron { transition:transform .15s ease; color:var(--text-faint); display:inline-flex; }
+.atlas[open] > summary .chevron { transform:rotate(90deg); }
+.atlas-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; padding:0 13px 13px; }
+.atlas-item { border:1px solid var(--border); border-radius:var(--radius-xs); padding:8px; background:var(--surface-2); display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10.5px; color:var(--text-dim); }
+.atlas-item:hover { border-color:var(--accent-line); }
+.atlas-item.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent-strong); }
+.atlas-item .glyph { width:100%; height:38px; display:grid; place-items:center; color:var(--accent-strong); }
+.atlas-item .glyph svg { width:30px; height:30px; }
+.cfg-foot { display:flex; align-items:center; gap:10px; }
+.cfg-foot .spacer { flex:1; }
+
+/* 运行 */
+.task-head { padding:14px 24px 0; background:var(--bg); border-bottom:1px solid var(--border); }
+.task-head-row { display:flex; align-items:center; gap:12px; padding-bottom:12px; }
+.task-head .skill-chip { display:inline-flex; align-items:center; gap:8px; padding:5px 11px 5px 9px; background:var(--surface-2); border:1px solid var(--border); border-radius:99px; font-size:12.5px; font-weight:600; }
+.task-head .skill-chip .nav-dot { background:var(--accent); }
+.task-head .skill-chip .skill-id { font-family:var(--mono); font-weight:500; font-size:11.5px; color:var(--text-faint); }
+.task-meta { margin-left:auto; display:flex; align-items:center; gap:14px; font-size:11.5px; color:var(--text-faint); }
+.task-meta .mono { font-family:var(--mono); }
+.task-path { display:inline-flex; align-items:center; gap:5px; max-width:240px; }
+.task-path svg { width:13px; height:13px; }
+.task-path .p { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.scanline { height:2px; position:relative; overflow:hidden; background:var(--border); }
+.scanline::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,var(--accent) 45%,var(--accent-strong) 50%,var(--accent) 55%,transparent); transform:translateX(-100%); animation:scan 2.4s cubic-bezier(.5,0,.5,1) infinite; }
+@keyframes scan { to { transform:translateX(100%); } }
+.stream { flex:1; overflow-y:auto; padding:22px 24px 28px; }
+.stream-inner { max-width:760px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+.block { animation:develop .4s ease both; }
+@keyframes develop { from { opacity:0; transform:translateY(4px); filter:blur(1px); } to { opacity:1; transform:none; filter:none; } }
+.block-by { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:11.5px; color:var(--text-faint); }
+.avatar { width:20px; height:20px; border-radius:6px; display:grid; place-items:center; flex-shrink:0; }
+.avatar svg { width:12px; height:12px; }
+.avatar.user { background:var(--surface-3); color:var(--text-dim); }
+.avatar.agent { background:var(--accent-soft); color:var(--accent-strong); }
+.block-by .who { font-weight:600; color:var(--text-dim); }
+.block-by .at { font-family:var(--mono); margin-left:auto; }
+.msg-user .bubble { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; color:var(--text); }
+.attach { margin-top:9px; display:flex; flex-wrap:wrap; gap:6px; }
+.attach .file { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; background:var(--surface-3); border:1px solid var(--border); padding:3px 8px; border-radius:var(--radius-xs); color:var(--text-dim); }
+.attach .file svg { width:12px; height:12px; opacity:.7; }
+.think { border:1px solid var(--border); border-radius:var(--radius); background:color-mix(in srgb,var(--surface) 60%,transparent); overflow:hidden; }
+.think > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:9px; padding:10px 13px; font-size:12.5px; color:var(--text-dim); font-weight:500; }
+.think > summary::-webkit-details-marker { display:none; }
+.think > summary:hover { color:var(--text); }
+.think .chevron { transition:transform .15s ease; color:var(--text-faint); display:inline-flex; }
+.think[open] .chevron { transform:rotate(90deg); }
+.think .think-icon { color:var(--accent); display:inline-flex; }
+.think .think-icon svg { width:14px; height:14px; }
+.think .dur { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--text-faint); }
+.think-body { padding:0 14px 13px 36px; color:var(--text-dim); font-size:12.5px; line-height:1.7; }
+.think-body p { margin:8px 0 0; }
+.think-body .mono { font-family:var(--mono); color:var(--text); font-size:12px; }
+.plan { border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; background:var(--surface); }
+.plan-title { font-size:12px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:7px; margin-bottom:9px; }
+.plan-title svg { width:14px; height:14px; color:var(--accent); }
+.plan-step { display:flex; align-items:flex-start; gap:9px; padding:4px 0; font-size:13px; }
+.plan-step .box { width:16px; height:16px; border-radius:5px; flex-shrink:0; margin-top:1px; border:1.5px solid var(--border-strong); display:grid; place-items:center; color:transparent; }
+.plan-step.done .box { background:var(--accent); border-color:var(--accent); color:#fff; }
+.plan-step.done .box svg { width:10px; height:10px; }
+.plan-step.done .label { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-strong); }
+.plan-step.active .box { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.plan-step.active .label { color:var(--text); font-weight:500; }
+.cmd { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); overflow:hidden; font-family:var(--mono); }
+.cmd-line { display:flex; align-items:center; gap:9px; padding:9px 13px; font-size:12.5px; }
+.cmd-line + .cmd-line { border-top:1px solid var(--border); }
+.cmd-line .sigil { color:var(--accent); user-select:none; }
+.cmd-line .text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+.cmd-line .text .arg { color:var(--text-dim); }
+.cmd-stat { font-size:10.5px; font-weight:600; font-family:var(--sans); padding:2px 8px; border-radius:99px; flex-shrink:0; }
+.cmd-stat.ok { background:var(--ok-soft); color:var(--ok); }
+.cmd-stat.run { background:var(--accent-soft); color:var(--accent-strong); display:inline-flex; align-items:center; gap:5px; }
+.artifact-evt { display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); width:100%; text-align:left; transition:border-color .12s ease,background .12s ease,transform .05s ease; }
+.artifact-evt:hover { border-color:var(--accent-line); background:var(--surface-2); }
+.artifact-evt:active { transform:translateY(1px); }
+.artifact-evt .fi { width:34px; height:34px; border-radius:var(--radius-xs); flex-shrink:0; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent-strong); }
+.artifact-evt .fi svg { width:17px; height:17px; }
+.artifact-evt .meta { flex:1; min-width:0; }
+.artifact-evt .fname { font-family:var(--mono); font-size:12.5px; font-weight:500; color:var(--text); }
+.artifact-evt .fsub { font-size:11px; color:var(--text-faint); margin-top:1px; }
+.artifact-evt .kind { font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:var(--ok-soft); color:var(--ok); flex-shrink:0; }
+.artifact-evt .open-hint { color:var(--text-faint); flex-shrink:0; }
+.artifact-evt .open-hint svg { width:15px; height:15px; }
+.assistant .md { border:1px solid var(--border); border-left:2px solid var(--accent); border-radius:var(--radius); background:var(--surface); padding:14px 16px; }
+.md > :first-child { margin-top:0; } .md > :last-child { margin-bottom:0; }
+.md p { margin:9px 0; }
+.md ul { margin:8px 0; padding-left:20px; }
+.md li { margin:3px 0; }
+.md code { font-family:var(--mono); font-size:12px; background:var(--surface-2); border:1px solid var(--border); padding:1px 5px; border-radius:5px; }
+.md strong { font-weight:600; }
+.md .accent { color:var(--accent-strong); font-weight:600; }
+.turn-foot { display:flex; align-items:center; gap:14px; font-family:var(--mono); font-size:11px; color:var(--text-faint); padding:2px 2px; }
+.turn-foot .sep { width:1px; height:11px; background:var(--border-strong); }
+.turn-foot b { color:var(--text-dim); font-weight:600; }
+.working { display:flex; align-items:center; gap:10px; padding:4px 2px; color:var(--text-dim); font-size:13px; }
+.working .dots { display:inline-flex; gap:3px; }
+.working .dots i { width:5px; height:5px; border-radius:99px; background:var(--accent); animation:bob 1.2s ease-in-out infinite; }
+.working .dots i:nth-child(2) { animation-delay:.15s; } .working .dots i:nth-child(3) { animation-delay:.3s; }
+@keyframes bob { 0%,100%{opacity:.3; transform:translateY(0);} 50%{opacity:1; transform:translateY(-3px);} }
+.stop-btn { margin-left:auto; display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border:1px solid var(--border-strong); background:var(--surface-2); border-radius:var(--radius-xs); font-size:12px; color:var(--text-dim); }
+.stop-btn:hover { color:var(--err); border-color:var(--err); }
+.stop-btn svg { width:12px; height:12px; }
+.composer-wrap { padding:0 24px 18px; background:var(--bg); }
+.composer-wrap .composer { max-width:760px; margin:0 auto; }
+
+/* 右栏 */
+.artifacts { flex-direction:column; min-height:0; background:var(--surface); border-left:1px solid var(--border); overflow:hidden; }
+.art-head { display:flex; align-items:center; gap:10px; padding:14px 16px 12px; border-bottom:1px solid var(--border); }
+.art-head .title { font-family:var(--display); font-weight:600; font-size:14px; }
+.art-head .num { font-family:var(--mono); font-size:11px; color:var(--text-faint); background:var(--surface-2); border:1px solid var(--border); padding:1px 7px; border-radius:99px; }
+.art-head .spacer { flex:1; }
+.art-tabs { display:flex; gap:4px; padding:10px 12px 0; }
+.art-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:var(--radius-xs) var(--radius-xs) 0 0; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); border:1px solid transparent; border-bottom:none; }
+.art-tab svg { width:13px; height:13px; opacity:.75; }
+.art-tab:hover { background:var(--surface-2); color:var(--text); }
+.art-tab.active { background:var(--bg); color:var(--text); border-color:var(--border); }
+.art-body { flex:1; overflow-y:auto; padding:16px; }
+.art-pane { display:none; }
+.art-pane.active { display:block; animation:develop .35s ease both; }
+.fig { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--bg); }
+.fig .canvas { padding:14px; display:grid; place-items:center; }
+.fig svg { width:100%; height:auto; display:block; }
+.fig figcaption { font-size:11.5px; color:var(--text-dim); padding:9px 13px; border-top:1px solid var(--border); background:var(--surface); }
+.fig figcaption b { color:var(--text); font-weight:600; }
+.code-block { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--bg); }
+.code-block pre { margin:0; padding:13px 14px; overflow-x:auto; font-family:var(--mono); font-size:11.5px; line-height:1.7; color:var(--text-dim); }
+.code-block .k { color:var(--accent-strong); } .code-block .s { color:var(--ok); } .code-block .c { color:var(--text-faint); font-style:italic; }
+.art-actions { display:flex; gap:8px; margin-top:14px; }
+.art-actions .btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-strong); background:var(--surface-2); font-size:12.5px; font-weight:500; color:var(--text-dim); }
+.art-actions .btn:hover { color:var(--text); border-color:var(--accent-line); background:var(--surface-3); }
+.art-actions .btn svg { width:14px; height:14px; }
+.art-actions .btn.primary { background:var(--accent-soft); color:var(--accent-strong); border-color:var(--accent-line); }
+.refine-card { margin-top:14px; padding:12px 13px; border:1px dashed var(--border-strong); border-radius:var(--radius); background:color-mix(in srgb,var(--surface-2) 70%,transparent); }
+.refine-card .h { font-size:12px; font-weight:600; color:var(--text-dim); margin-bottom:8px; display:flex; align-items:center; gap:7px; }
+.refine-card .h svg { width:14px; height:14px; color:var(--accent); }
+.refine-card .row { display:flex; gap:8px; }
+.refine-card input { flex:1; border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--bg); color:var(--text); padding:8px 10px; font:inherit; font-size:12.5px; }
+.refine-card input::placeholder { color:var(--text-faint); }
+.refine-card input:focus { outline:none; border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-soft); }
+.refine-card button { padding:8px 12px; border-radius:var(--radius-xs); border:1px solid var(--accent); background:var(--accent); color:#fff; font-weight:600; font-size:12.5px; }
+
+/* 设置 */
+.seg { display:inline-flex; padding:3px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); gap:2px; }
+.seg button { padding:6px 14px; border:0; background:none; border-radius:var(--radius-xs); font-size:12.5px; font-weight:500; color:var(--text-dim); display:inline-flex; align-items:center; gap:6px; }
+.seg button svg { width:14px; height:14px; }
+.seg button.on { background:var(--accent); color:#fff; box-shadow:var(--shadow-sm); }
+.panel { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); margin-bottom:16px; overflow:hidden; }
+.panel-head { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border); }
+.panel-head .p-ico { width:28px; height:28px; border-radius:var(--radius-xs); display:grid; place-items:center; background:var(--accent-soft); color:var(--accent-strong); }
+.panel-head .p-ico svg { width:15px; height:15px; }
+.panel-head h3 { font-family:var(--display); font-weight:600; font-size:14px; margin:0; }
+.panel-head .p-sub { font-size:11.5px; color:var(--text-faint); margin-top:1px; }
+.panel-head .spacer { flex:1; }
+.panel-body { padding:6px 16px; }
+.dr { display:flex; align-items:center; gap:11px; padding:11px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.dr:last-child { border-bottom:0; }
+.dr .dot { width:8px; height:8px; border-radius:99px; flex-shrink:0; }
+.dr .dot.ok { background:var(--ok); box-shadow:0 0 0 3px var(--ok-soft); }
+.dr .dot.err { background:var(--err); box-shadow:0 0 0 3px var(--err-soft); }
+.dr .k { width:96px; font-weight:600; color:var(--text-dim); flex-shrink:0; }
+.dr .v { color:var(--text); font-family:var(--mono); font-size:12px; overflow:hidden; text-overflow:ellipsis; }
+.dr .v.muted { color:var(--text-faint); }
+.panel-foot { padding:12px 16px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; background:color-mix(in srgb,var(--surface-2) 50%,transparent); }
+.pref-row { display:flex; align-items:center; gap:14px; padding:13px 0; border-bottom:1px solid var(--border); }
+.pref-row:last-child { border-bottom:0; }
+.pref-row .pk { flex:1; }
+.pref-row .pk .t { font-weight:600; font-size:13px; }
+.pref-row .pk .d { font-size:11.5px; color:var(--text-faint); margin-top:2px; }
+.danger-panel { border-color:var(--err-soft); }
+.danger-panel .panel-head .p-ico { background:var(--err-soft); color:var(--err); }
+.warn-text { color:var(--err); font-weight:600; }
+
+.theme-fab { position:fixed; right:14px; bottom:14px; z-index:50; display:inline-flex; align-items:center; gap:7px; padding:8px 13px; border-radius:99px; background:var(--surface); color:var(--text-dim); border:1px solid var(--border-strong); box-shadow:var(--shadow); font-size:12px; font-weight:500; }
+.theme-fab:hover { color:var(--text); }
+.theme-fab svg { width:15px; height:15px; }
+
+@media (max-width:1180px) { .shell[data-view="run"] { grid-template-columns:var(--col-left) minmax(0,1fr); } .shell[data-view="run"] .artifacts { display:none; } }
+@media (max-width:800px) { .shell,.shell[data-view="run"] { grid-template-columns:minmax(0,1fr); } .sidebar { display:none; } }
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } .scanline::before { display:none; } .scanline { background:var(--accent-line); } }
+</style>
+</head>
+<body>
+<div class="shell" id="shell" data-view="home">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V8"/><path d="M12 8c0-3.3 2.7-6 6-6 0 3.3-2.7 6-6 6Z"/><path d="M12 13c0-2.8-2.2-5-5-5 0 2.8 2.2 5 5 5Z"/></svg></div>
+      <div class="brand-name">Nature <span class="dim">App</span></div>
+    </div>
+    <button class="new-task" onclick="showView('home')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新建任务<span class="kbd">⌘N</span></button>
+    <button class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>搜索技能、会话…<span class="kbd">⌘K</span></button>
+    <nav class="nav">
+      <div class="nav-group">
+        <button class="nav-item nav-home active" onclick="showView('home')"><span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></span><span class="nav-text">首页</span></button>
+        <button class="nav-item nav-settings" onclick="showView('settings')"><span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 14H4.5a2 2 0 0 1 0-4H4.6a1.65 1.65 0 0 0 1.51-1Z"/></svg></span><span class="nav-text">设置 / 体检</span></button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">最近 <span class="count">3</span></div>
+        <button class="nav-item run-state nav-run" onclick="showView('run')"><span class="live-dot" aria-hidden="true"></span><span class="nav-text"><span>分组柱状图 · 误差棒</span><span class="nav-sub">绘图 · 运行中</span></span></button>
+        <button class="nav-item run-state" onclick="showView('run')"><span class="nav-dot" aria-hidden="true"></span><span class="nav-text"><span>摘要润色对照</span><span class="nav-sub">润色 · 2 分钟前</span></span></button>
+        <button class="nav-item run-state" onclick="showView('run')"><span class="nav-dot" aria-hidden="true"></span><span class="nav-text"><span>Transformer 综述检索</span><span class="nav-sub">检索 · 14 分钟前</span></span></button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">技能 <span class="count">11</span></div>
+        <button class="nav-item" onclick="openSkill('检索','academic-search')"><span class="nav-dot beta"></span><span class="nav-text"><span class="nav-zh">检索</span><span class="nav-id">academic-search</span></span></button>
+        <button class="nav-item" onclick="openSkill('阅读','reader')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">阅读</span><span class="nav-id">reader</span></span></button>
+        <button class="nav-item" onclick="openSkill('写作','writing')"><span class="nav-dot beta"></span><span class="nav-text"><span class="nav-zh">写作</span><span class="nav-id">writing</span></span></button>
+        <button class="nav-item" onclick="openSkill('润色','polishing')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">润色</span><span class="nav-id">polishing</span></span></button>
+        <button class="nav-item" onclick="openSkill('绘图','figure')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">绘图</span><span class="nav-id">figure</span></span></button>
+        <button class="nav-item" onclick="openSkill('引用','citation')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">引用</span><span class="nav-id">citation</span></span></button>
+        <button class="nav-item" onclick="openSkill('数据','data')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">数据</span><span class="nav-id">data</span></span></button>
+        <button class="nav-item" onclick="openSkill('审稿','reviewer')"><span class="nav-dot beta"></span><span class="nav-text"><span class="nav-zh">审稿</span><span class="nav-id">reviewer</span></span></button>
+        <button class="nav-item" onclick="openSkill('回复','response')"><span class="nav-dot draft"></span><span class="nav-text"><span class="nav-zh">回复</span><span class="nav-id">response</span></span></button>
+        <button class="nav-item" onclick="openSkill('PPT','paper2ppt')"><span class="nav-dot stable"></span><span class="nav-text"><span class="nav-zh">PPT</span><span class="nav-id">paper2ppt</span></span></button>
+        <button class="nav-item" onclick="openSkill('专利','paper-to-patent')"><span class="nav-dot draft"></span><span class="nav-text"><span class="nav-zh">专利</span><span class="nav-id">paper-to-patent</span></span></button>
+      </div>
+    </nav>
+    <div class="engine-bar">
+      <div class="engine-row"><span class="dot ok" aria-hidden="true"></span>Codex 已登录<span class="engine-ver">v0.21.0</span></div>
+      <div class="engine-tools"><span class="tool-chip"><span class="dot"></span>uv</span><span class="tool-chip"><span class="dot"></span>python 3.13</span><span class="tool-chip"><span class="dot"></span>MCP</span></div>
+      <div class="engine-actions">
+        <button class="icon-btn wide" onclick="showView('settings')" title="环境体检 / 设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 14H4.5a2 2 0 0 1 0-4H4.6a1.65 1.65 0 0 0 1.51-1Z"/></svg>设置</button>
+        <button class="icon-btn" onclick="toggleTheme()" title="切换主题"><svg id="themeIcon2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="main">
+
+    <!-- 首页 -->
+    <div class="view view-home">
+      <div class="scroll-area">
+        <div class="page">
+          <div class="hero">
+            <span class="eyebrow">研究流水线 · 本地运行</span>
+            <h1>从检索到投稿,<span class="grad">一条流水线跑完。</span></h1>
+            <p>描述你要推进的研究任务,或挑一个技能开始 —— 全程在你的机器上,由 Codex 驱动。</p>
+          </div>
+          <div class="home-composer">
+            <div class="composer">
+              <textarea rows="3" placeholder="例如:把这篇 PDF 的方法部分精读成中英对照,并提取关键引用…"></textarea>
+              <div class="composer-bar">
+                <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>工作目录</button>
+                <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05 12.3 20a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg>附加文件</button>
+                <button class="toggle on" onclick="this.classList.toggle('on')"><span class="sw"></span>允许联网</button>
+                <span class="spacer"></span>
+                <button class="send" onclick="showView('run')">开始任务<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <div class="sect">
+            <div class="sect-head"><h2>技能</h2><span class="more">按研究流程编排 · 共 11 个</span></div>
+            <div class="group-label">检索 & 阅读</div>
+            <div class="skill-grid">
+              <button class="skill-card" onclick="openSkill('检索','academic-search')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg></span><span><span class="sc-zh">检索</span><div class="sc-id">academic-search</div></span><span class="sc-badge badge beta">beta</span></div><p class="sc-desc">按需求检索文献,五种工作流协同,可挂学术 MCP。</p></button>
+              <button class="skill-card" onclick="openSkill('阅读','reader')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 1-2-2Z"/><path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg></span><span><span class="sc-zh">阅读</span><div class="sc-id">reader</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">解析 PDF / 网页,双语对照精读,图表随文。</p></button>
+            </div>
+            <div class="group-label">写作 · 润色 · 引用</div>
+            <div class="skill-grid">
+              <button class="skill-card" onclick="openSkill('写作','writing')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span><span class="sc-zh">写作</span><div class="sc-id">writing</div></span><span class="sc-badge badge beta">beta</span></div><p class="sc-desc">起草与重构稿件,按章节脉络组织论证。</p></button>
+              <button class="skill-card" onclick="openSkill('润色','polishing')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 14.5 5-5M5 19l2.5-.5L19 7a2 2 0 0 0-3-3L4.5 15.5 4 18Z"/><path d="M15 5l4 4"/></svg></span><span><span class="sc-zh">润色</span><div class="sc-id">polishing</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">母语级润色,原稿 / 改后逐句对照。</p></button>
+              <button class="skill-card" onclick="openSkill('引用','citation')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6a4 4 0 0 1-4 4M14 7h4v6a4 4 0 0 1-4 4"/></svg></span><span><span class="sc-zh">引用</span><div class="sc-id">citation</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">解析与规范引用,一键导出到 Zotero。</p></button>
+            </div>
+            <div class="group-label">图 & 数据</div>
+            <div class="skill-grid">
+              <button class="skill-card" onclick="openSkill('绘图','figure')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></span><span><span class="sc-zh">绘图</span><div class="sc-id">figure</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">matplotlib / R 出版级图表,支持"再改一版"。</p></button>
+              <button class="skill-card" onclick="openSkill('数据','data')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span><span class="sc-zh">数据</span><div class="sc-id">data</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">生成数据可用性声明,梳理数据集清单。</p></button>
+            </div>
+            <div class="group-label">评审 · 回复</div>
+            <div class="skill-grid">
+              <button class="skill-card" onclick="openSkill('审稿','reviewer')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span><span><span class="sc-zh">审稿</span><div class="sc-id">reviewer</div></span><span class="sc-badge badge beta">beta</span></div><p class="sc-desc">Nature 风格审稿人视角,三份报告 + 综述。</p></button>
+              <button class="skill-card" onclick="openSkill('回复','response')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span><span><span class="sc-zh">回复</span><div class="sc-id">response</div></span><span class="sc-badge badge draft">draft</span></div><p class="sc-desc">逐条回复审稿意见,生成 point-by-point。</p></button>
+            </div>
+            <div class="group-label">转换产出</div>
+            <div class="skill-grid">
+              <button class="skill-card" onclick="openSkill('PPT','paper2ppt')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4M8 21h8"/></svg></span><span><span class="sc-zh">PPT</span><div class="sc-id">paper2ppt</div></span><span class="sc-badge badge stable">stable</span></div><p class="sc-desc">论文转演示文稿,按论文类型选叙事弧。</p></button>
+              <button class="skill-card" onclick="openSkill('专利','paper-to-patent')"><div class="sc-head"><span class="sc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg></span><span><span class="sc-zh">专利</span><div class="sc-id">paper-to-patent</div></span><span class="sc-badge badge draft">draft</span></div><p class="sc-desc">研究披露转中文发明专利草案,证据锚定。</p></button>
+            </div>
+          </div>
+          <div class="sect">
+            <div class="sect-head"><h2>最近任务</h2><span class="more">查看全部</span></div>
+            <div class="recent-list">
+              <button class="recent-row" onclick="showView('run')"><span class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></span><span class="r-main"><div class="r-title">分组柱状图 · 误差棒</div><div class="r-sub">绘图 · ~/projects/cell-assay</div></span><span class="status-pill running"><span class="live-dot"></span>运行中</span></button>
+              <button class="recent-row" onclick="showView('run')"><span class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 14.5 5-5M5 19l2.5-.5L19 7a2 2 0 0 0-3-3L4.5 15.5 4 18Z"/></svg></span><span class="r-main"><div class="r-title">摘要润色对照</div><div class="r-sub">润色 · ~/papers/draft-v3</div></span><span class="r-time">2 分钟前</span></button>
+              <button class="recent-row" onclick="showView('run')"><span class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg></span><span class="r-main"><div class="r-title">Transformer 综述检索</div><div class="r-sub">检索 · 18 篇命中</div></span><span class="r-time">14 分钟前</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新建任务 -->
+    <div class="view view-newtask">
+      <div class="subbar">
+        <button class="back-btn" onclick="showView('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>返回</button>
+        <span class="skill-chip"><span class="nav-dot"></span><span id="cfgZh">绘图</span><span class="skill-id" id="cfgId">nature-figure</span></span>
+        <span class="badge stable">stable</span>
+      </div>
+      <div class="scroll-area">
+        <div class="page" style="max-width:760px">
+          <div class="eyebrow" style="margin-bottom:8px;display:block">配置任务</div>
+          <h1 class="h-title" style="font-size:22px;margin:0 0 18px">出一张出版级图表</h1>
+          <div class="cfg-card">
+            <div class="cfg-row"><span class="cfg-key">工作目录</span><div class="cfg-val"><button class="pick-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>选择目录</button><span class="path-text">~/projects/cell-assay</span></div></div>
+            <div class="cfg-row"><span class="cfg-key">输入文件</span><div class="cfg-val"><button class="pick-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5M7 3h8l5 5v13H7z"/></svg>选择文件</button><span class="path-text">assay_means.csv</span></div></div>
+          </div>
+          <div class="cfg-card">
+            <div class="cfg-row" style="display:block"><div class="axis-label">绘图后端 <span class="req">必填</span></div><div class="chips"><button class="chip on" onclick="pick(this)">Python (matplotlib)</button><button class="chip" onclick="pick(this)">R (ggplot2)</button></div></div>
+            <div class="cfg-row" style="display:block"><div class="axis-label">图型参考 <span class="multi">chart-atlas · 可选</span></div>
+              <details class="atlas"><summary><span class="chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>从 10 类图型里选一个引导绘图</summary>
+                <div class="atlas-grid">
+                  <button class="atlas-item on"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></span>bar 柱状</button>
+                  <button class="atlas-item"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18M6 15l4-5 4 3 5-7"/></svg></span>line 趋势</button>
+                  <button class="atlas-item"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9 4v16M14 4v16M4 9h16M4 14h16"/></svg></span>heatmap</button>
+                  <button class="atlas-item"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="14" r="1.5"/><circle cx="11" cy="9" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="18" cy="6" r="1.5"/></svg></span>scatter</button>
+                  <button class="atlas-item"><span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 4 7v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7Z"/></svg></span>radar</button>
+                </div>
+              </details>
+            </div>
+          </div>
+          <div class="composer" style="margin-bottom:16px">
+            <textarea rows="4" placeholder="用一句话描述这张图…(例如:三个时间点 × 对照/给药,分组柱状 + 误差棒,蓝绿配色)"></textarea>
+            <div class="composer-bar"><button class="toggle on" onclick="this.classList.toggle('on')"><span class="sw"></span>允许联网</button><button class="toggle" onclick="this.classList.toggle('on')"><span class="sw"></span>全放开沙箱</button></div>
+          </div>
+          <div class="cfg-foot"><span class="path-text empty">必填轴已就绪 · 准备运行</span><span class="spacer"></span><button class="back-btn" onclick="showView('home')">取消</button><button class="send" onclick="showView('run')">运行任务<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 运行 -->
+    <div class="view view-run">
+      <div class="task-head">
+        <div class="task-head-row">
+          <span class="skill-chip"><span class="nav-dot"></span>绘图<span class="skill-id">nature-figure</span></span>
+          <span class="status-pill running"><span class="live-dot"></span>运行中</span>
+          <div class="task-meta"><span class="task-path" title="/Users/me/projects/cell-assay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg><span class="p">~/projects/cell-assay</span></span><span class="mono">in <b style="color:var(--text-dim)">38.2k</b> · out <b style="color:var(--text-dim)">4.1k</b></span></div>
+        </div>
+        <div class="scanline" aria-hidden="true"></div>
+      </div>
+      <div class="stream">
+        <div class="stream-inner">
+          <div class="block msg-user">
+            <div class="block-by"><span class="avatar user"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="who">你</span><span class="at">14:02:11</span></div>
+            <div class="bubble">把这组对照实验数据画成<strong>分组柱状图</strong>,三个时间点 × 对照/给药两组,加上标准差误差棒;配色用蓝绿系,导出 PNG 和 SVG 到工作目录。<div class="attach"><span class="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v5h5M7 3h8l5 5v13H7z"/></svg>assay_means.csv</span></div></div>
+          </div>
+          <div class="block assistant">
+            <div class="block-by"><span class="avatar agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v6c0 4 3.4 6.6 8 8 4.6-1.4 8-4 8-8V7Z"/></svg></span><span class="who">Nature Agent</span><span class="at">14:02:13</span></div>
+            <details class="think" open><summary><span class="chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span><span class="think-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2h6c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z"/></svg></span>思考 · 3 步<span class="dur">2.4s</span></summary>
+              <div class="think-body"><p>读取 <span class="mono">assay_means.csv</span>:3 组时间点(0h / 24h / 48h)× 2 条件(对照 / 给药),每格含均值与标准差。</p><p>选择 matplotlib 后端。分组柱状图最贴合"两条件对比 × 时间序列",误差棒用列里的 SD。蓝绿系取 <span class="mono">#2E7FB8 / #4FB49A</span>,符合无障碍对比。</p><p>同时导出 <span class="mono">.png</span>(300 dpi)与 <span class="mono">.svg</span>(矢量,便于投稿再编辑)。</p></div>
+            </details>
+          </div>
+          <div class="block"><div class="plan">
+            <div class="plan-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>执行计划</div>
+            <div class="plan-step done"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span><span class="label">解析 CSV,确认数据形状</span></div>
+            <div class="plan-step done"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span><span class="label">生成绘图脚本 plot.py</span></div>
+            <div class="plan-step active"><span class="box"></span><span class="label">运行脚本,导出 PNG / SVG</span></div>
+          </div></div>
+          <div class="block"><div class="cmd">
+            <div class="cmd-line"><span class="sigil">$</span><span class="text">codex exec <span class="arg">--json --sandbox workspace-write</span></span><span class="cmd-stat ok">完成</span></div>
+            <div class="cmd-line"><span class="sigil">$</span><span class="text">uv run python <span class="arg">plot.py --out chart.png chart.svg</span></span><span class="cmd-stat run"><span class="live-dot" style="width:6px;height:6px"></span>运行中</span></div>
+          </div></div>
+          <button class="block artifact-evt" onclick="selectTab('png')"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></span><span class="meta"><span class="fname">chart.png</span><span class="fsub">图像 · 300 dpi · 写入工作目录</span></span><span class="kind">created</span><span class="open-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span></button>
+          <button class="block artifact-evt" onclick="selectTab('py')"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 4-6-4-6M8 6l-4 6 4 6"/></svg></span><span class="meta"><span class="fname">plot.py</span><span class="fsub">脚本 · 可用于"再改一版"</span></span><span class="kind">created</span><span class="open-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span></button>
+          <div class="block assistant"><div class="md"><p>已生成<span class="accent">分组柱状图</span>,三个时间点 × 两条件,误差棒取各组标准差:</p><ul><li>配色:对照 <code>#2E7FB8</code> / 给药 <code>#4FB49A</code>,色觉友好</li><li>导出:<code>chart.png</code>(300 dpi)+ <code>chart.svg</code>(矢量,可二次编辑)</li><li>48h 给药组相对对照上升约 <strong>2.3×</strong>,差异最显著</li></ul><p>需要换横向、改配色或加显著性标记,在右侧"再改一版"说一句即可,会基于 <code>plot.py</code> 增量改。</p></div></div>
+          <div class="block turn-foot"><span>turn 完成</span><span class="sep"></span><span>in <b>38,210</b></span><span>cached <b>31,040</b></span><span>out <b>4,118</b></span><span class="sep"></span><span>reasoning <b>1,902</b></span></div>
+          <div class="block working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>正在写出 chart.svg…<button class="stop-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>取消</button></div>
+        </div>
+      </div>
+      <div class="composer-wrap">
+        <div class="composer">
+          <textarea rows="2" placeholder="追加指令,或开始新一轮…（⏎ 发送，⇧⏎ 换行）"></textarea>
+          <div class="composer-bar"><button class="toggle on" onclick="this.classList.toggle('on')"><span class="sw"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>允许联网</button><button class="toggle" onclick="this.classList.toggle('on')"><span class="sw"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v6c0 5 4 8 9 9 5-1 9-4 9-9V7Z"/></svg>全放开沙箱</button><span class="spacer"></span><button class="send">发送<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置 -->
+    <div class="view view-settings">
+      <div class="scroll-area">
+        <div class="page" style="max-width:760px">
+          <div class="eyebrow" style="display:block;margin-bottom:8px">设置</div>
+          <h1 class="h-title" style="font-size:24px;margin:0 0 22px">环境体检 & 偏好</h1>
+          <div class="panel">
+            <div class="panel-head"><span class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7Z"/></svg></span><div><h3>Codex 引擎</h3><div class="p-sub">驱动全部技能的本地 CLI</div></div><span class="spacer"></span><span class="status-pill done">就绪</span></div>
+            <div class="panel-body"><div class="dr"><span class="dot ok"></span><span class="k">登录态</span><span class="v">已登录</span></div><div class="dr"><span class="dot ok"></span><span class="k">版本</span><span class="v">codex-cli 0.21.0</span></div><div class="dr"><span class="dot ok"></span><span class="k">路径</span><span class="v muted">/opt/homebrew/bin/codex</span></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 4-6-4-6M8 6l-4 6 4 6"/></svg></span><div><h3>Python 环境(uv)</h3><div class="p-sub">隔离 venv,根治系统 Python 冲突</div></div></div>
+            <div class="panel-body"><div class="dr"><span class="dot ok"></span><span class="k">venv</span><span class="v muted">~/.nature-app/.venv</span></div><div class="dr"><span class="dot ok"></span><span class="k">Python</span><span class="v">3.13.1 (pinned)</span></div><div class="dr"><span class="dot ok"></span><span class="k">uv</span><span class="v muted">/opt/homebrew/bin/uv</span></div></div>
+            <div class="panel-foot"><button class="pick-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>预装依赖(uv sync)</button><span class="p-sub">首次或更新 skill 后运行</span></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6 2 2 6-6a4 4 0 0 0 5.4-5.4L13 11l-2-2Z"/></svg></span><div><h3>外部工具</h3><div class="p-sub">技能按需调用</div></div></div>
+            <div class="panel-body"><div class="dr"><span class="dot ok"></span><span class="k">pandoc</span><span class="v muted">/opt/homebrew/bin/pandoc</span></div><div class="dr"><span class="dot ok"></span><span class="k">LibreOffice</span><span class="v muted">/Applications/LibreOffice.app</span></div><div class="dr"><span class="dot err"></span><span class="k">R</span><span class="v muted">未找到 · 仅 R 绘图后端需要</span></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3.3 7 12 12l8.7-5M12 12v10"/></svg></span><div><h3>偏好</h3><div class="p-sub">默认行为与外观</div></div></div>
+            <div class="panel-body">
+              <div class="pref-row"><div class="pk"><div class="t">外观主题</div><div class="d">深色 / 浅色 / 跟随系统</div></div>
+                <div class="seg"><button class="on" onclick="setTheme('dark', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>深色</button><button onclick="setTheme('light', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>浅色</button><button onclick="setTheme('system', this)">跟随系统</button></div>
+              </div>
+              <div class="pref-row"><div class="pk"><div class="t">默认允许联网</div><div class="d">技能可访问网络(检索 / MCP 需要)</div></div><button class="toggle on" onclick="this.classList.toggle('on')"><span class="sw"></span></button></div>
+              <div class="pref-row"><div class="pk"><div class="t">默认模型</div><div class="d">codex exec 使用的模型</div></div><button class="pick-btn">gpt-5-codex<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></div>
+            </div>
+          </div>
+          <div class="panel danger-panel">
+            <div class="panel-head"><span class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><h3>高级</h3><div class="p-sub">仅在明确知道风险时启用</div></div></div>
+            <div class="panel-body"><div class="pref-row" style="border:0"><div class="pk"><div class="t"><span class="warn-text">全放开沙箱</span> (dangerFullAccess)</div><div class="d">解除工作目录限制,技能可读写整机文件 — 谨慎</div></div><button class="toggle" onclick="this.classList.toggle('on')"><span class="sw"></span></button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <aside class="artifacts">
+    <div class="art-head"><span class="title">产物</span><span class="num">2</span><span class="spacer"></span><button class="icon-btn" title="收起面板" onclick="document.getElementById('shell').classList.toggle('collapsed-right')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button></div>
+    <div class="art-tabs">
+      <button class="art-tab active" id="tab-png" onclick="selectTab('png')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>chart.png</button>
+      <button class="art-tab" id="tab-py" onclick="selectTab('py')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 4-6-4-6M8 6l-4 6 4 6"/></svg>plot.py</button>
+    </div>
+    <div class="art-body">
+      <div class="art-pane active" id="pane-png">
+        <figure class="fig">
+          <div class="canvas">
+            <svg viewBox="0 0 320 220" role="img" aria-label="分组柱状图">
+              <line x1="40" y1="180" x2="300" y2="180" stroke="var(--border-strong)" stroke-width="1"/><line x1="40" y1="30" x2="40" y2="180" stroke="var(--border-strong)" stroke-width="1"/>
+              <g font-family="IBM Plex Mono, monospace" font-size="8" fill="var(--text-faint)" text-anchor="end"><text x="35" y="183">0</text><text x="35" y="145">25</text><text x="35" y="107">50</text><text x="35" y="69">75</text><text x="35" y="33">100</text></g>
+              <rect x="62" y="140" width="22" height="40" fill="#2E7FB8" rx="2"/><rect x="86" y="128" width="22" height="52" fill="#4FB49A" rx="2"/><rect x="142" y="110" width="22" height="70" fill="#2E7FB8" rx="2"/><rect x="166" y="84" width="22" height="96" fill="#4FB49A" rx="2"/><rect x="222" y="92" width="22" height="88" fill="#2E7FB8" rx="2"/><rect x="246" y="46" width="22" height="134" fill="#4FB49A" rx="2"/>
+              <g stroke="var(--text)" stroke-width="1.2" opacity=".7"><line x1="73" y1="132" x2="73" y2="148"/><line x1="68" y1="132" x2="78" y2="132"/><line x1="68" y1="148" x2="78" y2="148"/><line x1="97" y1="120" x2="97" y2="136"/><line x1="92" y1="120" x2="102" y2="120"/><line x1="92" y1="136" x2="102" y2="136"/><line x1="153" y1="102" x2="153" y2="118"/><line x1="148" y1="102" x2="158" y2="102"/><line x1="148" y1="118" x2="158" y2="118"/><line x1="177" y1="76" x2="177" y2="92"/><line x1="172" y1="76" x2="182" y2="76"/><line x1="172" y1="92" x2="182" y2="92"/><line x1="233" y1="84" x2="233" y2="100"/><line x1="228" y1="84" x2="238" y2="84"/><line x1="228" y1="100" x2="238" y2="100"/><line x1="257" y1="38" x2="257" y2="54"/><line x1="252" y1="38" x2="262" y2="38"/><line x1="252" y1="54" x2="262" y2="54"/></g>
+              <g font-family="IBM Plex Mono, monospace" font-size="8.5" fill="var(--text-dim)" text-anchor="middle"><text x="85" y="194">0h</text><text x="165" y="194">24h</text><text x="245" y="194">48h</text></g>
+              <g font-family="Inter, sans-serif" font-size="8.5" fill="var(--text-dim)"><rect x="210" y="14" width="9" height="9" fill="#2E7FB8" rx="1.5"/><text x="223" y="22">对照</text><rect x="252" y="14" width="9" height="9" fill="#4FB49A" rx="1.5"/><text x="265" y="22">给药</text></g>
+            </svg>
+          </div>
+          <figcaption><b>chart.png</b> · 1600×1100 · 300 dpi · 蓝绿系 + SD 误差棒</figcaption>
+        </figure>
+        <div class="art-actions"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>在 Finder 显示</button><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>导出副本</button></div>
+        <div class="refine-card"><div class="h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>再改一版 · 基于 plot.py</div><div class="row"><input placeholder="例如:改横向、加显著性标记 *、对照换灰色…" /><button>生成</button></div></div>
+      </div>
+      <div class="art-pane" id="pane-py">
+        <div class="code-block">
+<pre><span class="c"># plot.py — 由 nature-figure 生成</span>
+<span class="k">import</span> matplotlib.pyplot <span class="k">as</span> plt
+<span class="k">import</span> numpy <span class="k">as</span> np, pandas <span class="k">as</span> pd
+
+df = pd.read_csv(<span class="s">"assay_means.csv"</span>)
+t  = [<span class="s">"0h"</span>, <span class="s">"24h"</span>, <span class="s">"48h"</span>]
+x  = np.arange(len(t)); w = <span class="s">0.38</span>
+
+fig, ax = plt.subplots(figsize=(<span class="s">5.3</span>, <span class="s">3.6</span>), dpi=<span class="s">300</span>)
+ax.bar(x - w/<span class="s">2</span>, df.ctrl, w, yerr=df.ctrl_sd,
+       label=<span class="s">"对照"</span>, color=<span class="s">"#2E7FB8"</span>, capsize=<span class="s">3</span>)
+ax.bar(x + w/<span class="s">2</span>, df.drug, w, yerr=df.drug_sd,
+       label=<span class="s">"给药"</span>, color=<span class="s">"#4FB49A"</span>, capsize=<span class="s">3</span>)
+
+ax.set_xticks(x, t); ax.legend(frameon=<span class="k">False</span>)
+fig.tight_layout()
+fig.savefig(<span class="s">"chart.png"</span>); fig.savefig(<span class="s">"chart.svg"</span>)</pre>
+        </div>
+        <div class="art-actions"><button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制</button><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>在编辑器打开</button></div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<button class="theme-fab" onclick="toggleTheme()"><svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><span id="themeLabel">浅色</span></button>
+
+<script>
+function showView(name){
+  const shell = document.getElementById('shell');
+  shell.classList.remove('collapsed-right');
+  shell.setAttribute('data-view', name);
+  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
+  if (name === 'home') document.querySelector('.nav-home') && document.querySelector('.nav-home').classList.add('active');
+  if (name === 'settings') document.querySelector('.nav-settings') && document.querySelector('.nav-settings').classList.add('active');
+  if (name === 'run') document.querySelector('.nav-run') && document.querySelector('.nav-run').classList.add('active');
+  var sa = document.querySelector('.shell[data-view="'+name+'"] .scroll-area'); if (sa) sa.scrollTop = 0;
+}
+function openSkill(zh, id){
+  document.getElementById('cfgZh').textContent = zh;
+  document.getElementById('cfgId').textContent = 'nature-' + id;
+  showView('newtask');
+}
+function pick(el){ el.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); el.classList.add('on'); }
+function selectTab(id){
+  document.getElementById('shell').classList.remove('collapsed-right');
+  document.querySelectorAll('.art-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.art-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  document.getElementById('pane-'+id).classList.add('active');
+}
+function applyThemeIcons(dark){
+  var sun = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  var moon = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>';
+  document.getElementById('themeLabel').textContent = dark ? '浅色' : '深色';
+  document.getElementById('themeIcon').innerHTML = dark ? moon : sun;
+  document.getElementById('themeIcon2').innerHTML = dark ? moon : sun;
+}
+function toggleTheme(){
+  var html = document.documentElement;
+  var dark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', dark ? 'light' : 'dark');
+  applyThemeIcons(!dark);
+}
+function setTheme(mode, el){
+  var html = document.documentElement;
+  var resolved = mode === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;
+  html.setAttribute('data-theme', resolved);
+  applyThemeIcons(resolved === 'dark');
+  if (el){ el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); el.classList.add('on'); }
+}
+applyThemeIcons(true);
+</script>
+</body>
+</html>

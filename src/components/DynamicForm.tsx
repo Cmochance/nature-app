@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Axis, SkillDescriptor } from "../types/skill";
+import { useI18n } from "../i18n";
 
 // 首版 figure 只支持 Python,R 置灰(计划:R 留后期)。
-function disabledValue(skillId: string, axisName: string, value: string): string | null {
+function disabledHint(skillId: string, axisName: string, value: string, zh: boolean): string | null {
   if (skillId === "nature-figure" && axisName === "backend" && value === "r") {
-    return "R 后端即将支持(首版仅 Python)";
+    return zh ? "R 后端即将支持(首版仅 Python)" : "R backend coming soon (Python only for now)";
   }
   return null;
 }
@@ -23,17 +24,16 @@ interface Props {
 
 function initialSelections(skill: SkillDescriptor): Record<string, string[]> {
   const sel: Record<string, string[]> = {};
-  for (const ax of skill.axes) {
-    sel[ax.name] = ax.defaultValue ? [ax.defaultValue] : [];
-  }
+  for (const ax of skill.axes) sel[ax.name] = ax.defaultValue ? [ax.defaultValue] : [];
   return sel;
 }
 
 export default function DynamicForm({ skill, files, onChange }: Props) {
+  const { t, lang } = useI18n();
+  const zh = lang === "zh";
   const [sel, setSel] = useState<Record<string, string[]>>(() => initialSelections(skill));
   const [userInput, setUserInput] = useState("");
 
-  // 切换 skill 时重置
   useEffect(() => {
     setSel(initialSelections(skill));
     setUserInput("");
@@ -46,19 +46,22 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
     return userInput.trim().length > 0;
   }, [skill, sel, userInput]);
 
+  // 发给 Codex 的指令:脚手架随界面语言走,skill id / 文件路径等专名保持一致。
   const instruction = useMemo(() => {
-    const lines: string[] = [`请使用技能「${skill.id}」完成以下任务。`];
+    const lines: string[] = [
+      zh ? `请使用技能「${skill.id}」完成以下任务。` : `Use the skill "${skill.id}" to complete the task below.`,
+    ];
     for (const ax of skill.axes) {
       const v = sel[ax.name];
       if (v && v.length) lines.push(`- ${ax.name}: ${v.join(", ")}`);
     }
-    lines.push("", "任务要求:", userInput.trim());
+    lines.push("", zh ? "任务要求:" : "Task:", userInput.trim());
     if (files.length) {
-      lines.push("", "可访问以下输入文件:");
+      lines.push("", zh ? "可访问以下输入文件:" : "Input files available:");
       files.forEach((f) => lines.push(`- ${f}`));
     }
     return lines.join("\n");
-  }, [skill, sel, userInput, files]);
+  }, [skill, sel, userInput, files, zh]);
 
   useEffect(() => {
     onChange({ instruction, valid, userInput });
@@ -79,15 +82,15 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
     <div className="dynform">
       {skill.formCapability === "axes" ? (
         skill.axes.map((ax) => (
-          <div key={ax.name} className="axis">
+          <div key={ax.name} className="cfg-row block">
             <div className="axis-label">
               {ax.name}
-              {ax.blockingGate && <span className="req">*必选</span>}
-              {ax.multi && <span className="multi">可多选</span>}
+              {ax.blockingGate && <span className="req">{t("common.required")}</span>}
+              {ax.multi && <span className="multi">{zh ? "可多选" : "multi"}</span>}
             </div>
             <div className="chips">
               {ax.values.map((v) => {
-                const dis = disabledValue(skill.id, ax.name, v);
+                const dis = disabledHint(skill.id, ax.name, v, zh);
                 const on = (sel[ax.name] ?? []).includes(v);
                 return (
                   <button
@@ -106,20 +109,15 @@ export default function DynamicForm({ skill, files, onChange }: Props) {
           </div>
         ))
       ) : (
-        <div className="fallback-note">
-          {skill.formCapability === "manifestNoAxes"
-            ? "该 skill 无结构化选项,变体由运行时规则处理 —— 直接描述任务即可。"
-            : "该 skill 为自由格式 —— 在下方描述任务并按需上传文件。"}
-        </div>
+        <div className="fallback-note">{t("task.fallbackNote")}</div>
       )}
 
-      <div className="axis">
-        <div className="axis-label">任务描述 / 内容<span className="req">*</span></div>
+      <div className="composer">
         <textarea
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          rows={5}
-          placeholder="描述你要这个 skill 做什么;需要处理的文本可直接粘贴,或在上方选择输入文件。"
+          rows={4}
+          placeholder={t("task.descPh")}
         />
       </div>
     </div>

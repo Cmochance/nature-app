@@ -1,15 +1,10 @@
 import { useEffect, useState } from "react";
 import { readTextFile } from "@tauri-apps/plugin-fs";
+import { useI18n } from "../i18n";
 
-// 按 nature-reader/references/output-spec.md 的真实 paper.md 块格式解析:
-//   **Source:** p.1 S001
-//   **Original:** ...
-//   **中文:** ...
-interface Block {
-  source: string;
-  original: string;
-  zh: string;
-}
+// 按 nature-reader 的 paper.md 块格式解析:
+//   **Source:** p.1 S001 / **Original:** ... / **中文:** ...
+interface Block { source: string; original: string; zh: string; }
 
 function parsePaperMd(md: string): Block[] {
   const parts = md.split(/(?=\*\*Source:\*\*)/);
@@ -17,8 +12,7 @@ function parsePaperMd(md: string): Block[] {
   for (const p of parts) {
     if (!/\*\*Source:\*\*/.test(p)) continue;
     const source = (p.match(/\*\*Source:\*\*\s*(.*)/) || [])[1]?.trim() || "";
-    const original =
-      (p.match(/\*\*Original:\*\*\s*([\s\S]*?)(?=\*\*中文:\*\*|$)/) || [])[1]?.trim() || "";
+    const original = (p.match(/\*\*Original:\*\*\s*([\s\S]*?)(?=\*\*中文:\*\*|$)/) || [])[1]?.trim() || "";
     const zh = (p.match(/\*\*中文:\*\*\s*([\s\S]*?)$/) || [])[1]?.trim() || "";
     blocks.push({ source, original, zh });
   }
@@ -26,22 +20,23 @@ function parsePaperMd(md: string): Block[] {
 }
 
 export default function ReaderBilingual({ path }: { path: string }) {
+  const { lang } = useI18n();
+  const zh = lang === "zh";
   const [content, setContent] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
   useEffect(() => {
     readTextFile(path).then(setContent).catch((e) => setErr(String(e)));
   }, [path]);
 
-  if (err) return <div className="err">读取 paper.md 失败:{err}</div>;
-  if (content == null) return <div className="dim">读取 paper.md…</div>;
+  if (err) return <div className="line-err">{(zh ? "读取失败:" : "Failed to read: ") + err}</div>;
+  if (content == null) return <div className="dim">{zh ? "读取中…" : "Loading…"}</div>;
 
   const blocks = parsePaperMd(content);
-  // 解析不出双语块 → 回落纯文本(不强行套格式)
-  if (blocks.length === 0) return <pre className="orig">{content.slice(0, 20000)}</pre>;
+  if (blocks.length === 0) return <div className="code-block"><pre>{content.slice(0, 20000)}</pre></div>;
 
   return (
     <div className="bilingual">
-      <div className="result-head">paper.md · 双语对照</div>
       {blocks.map((b, i) => (
         <div key={i} className="bi-row">
           {b.source && <div className="bi-src">{b.source}</div>}
