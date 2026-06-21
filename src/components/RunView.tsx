@@ -43,7 +43,7 @@ export default function RunView({ run, onOpenEditor }: { run: RunController; onO
             </span>
             {skillId === "nature-figure" && (
               <button className="ce-launch" onClick={onOpenEditor} title={run.plotParams ? undefined : (lang === "zh" ? "用演示数据打开(任务导出 plot_spec/plot_data 后用真实数据)" : "Opens with demo data (uses real data once the task exports plot_spec/plot_data)")}>
-                <Icon name="sliders" />{lang === "zh" ? "图表微调" : "Chart editor"}
+                <Icon name="sliders" />{t("ce.launch")}
               </button>
             )}
             <div className="task-meta">
