@@ -107,8 +107,7 @@ pub async fn preview_plot(
         .map_err(|e| format!("写 plot_data.json 失败: {e}"))?;
 
     // 5. 复制模板为 plot.py(模板从脚本同目录读 JSON)
-    fs::copy(&template_path, work.join("plot.py"))
-        .map_err(|e| format!("复制模板失败: {e}"))?;
+    fs::copy(&template_path, work.join("plot.py")).map_err(|e| format!("复制模板失败: {e}"))?;
 
     // 6. 获取 python(优先已就绪的 uv venv,回退系统 python3)
     let python: PathBuf = if pyenv::is_ready() {

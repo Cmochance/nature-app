@@ -92,24 +92,51 @@ pub struct Usage {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DomainEvent {
     #[serde(rename_all = "camelCase")]
-    Started { task_id: String, argv: Vec<String> },
+    Started {
+        task_id: String,
+        argv: Vec<String>,
+    },
     #[serde(rename_all = "camelCase")]
-    ThreadStarted { thread_id: String },
+    ThreadStarted {
+        thread_id: String,
+    },
     TurnStarted,
-    Reasoning { text: String },
-    AssistantMessage { text: String },
-    CommandRun { command: String, status: Option<String> },
+    Reasoning {
+        text: String,
+    },
+    AssistantMessage {
+        text: String,
+    },
+    CommandRun {
+        command: String,
+        status: Option<String>,
+    },
     /// 产物发现:codex 改了文件。
     #[serde(rename_all = "camelCase")]
-    Artifact { path: String, change_kind: String },
-    Plan { steps: serde_json::Value },
+    Artifact {
+        path: String,
+        change_kind: String,
+    },
+    Plan {
+        steps: serde_json::Value,
+    },
     /// 轻量进度(如 todo_list 更新),不刷屏。
-    Progress { text: String },
-    TurnCompleted { usage: Usage },
+    Progress {
+        text: String,
+    },
+    TurnCompleted {
+        usage: Usage,
+    },
     /// 容错透传:未知事件或解析失败,原样给前端控制台。
     #[serde(rename_all = "camelCase")]
-    Raw { codex_type: String, json: serde_json::Value },
-    EngineError { class: String, message: String },
+    Raw {
+        codex_type: String,
+        json: serde_json::Value,
+    },
+    EngineError {
+        class: String,
+        message: String,
+    },
     #[serde(rename_all = "camelCase")]
     Finished {
         outcome: String, // success | failure | cancelled
@@ -185,7 +212,10 @@ pub fn run_task(
     // task 私有目录,用于 -o last_message.txt
     let task_dir = std::env::temp_dir().join("nature-app").join(&task_id);
     std::fs::create_dir_all(&task_dir).map_err(|e| format!("create task dir: {e}"))?;
-    let last_message_path = task_dir.join("last_message.txt").to_string_lossy().to_string();
+    let last_message_path = task_dir
+        .join("last_message.txt")
+        .to_string_lossy()
+        .to_string();
 
     let bin = resolve_codex_bin();
     let argv = build_argv(&spec, &last_message_path);
@@ -301,7 +331,10 @@ pub fn run_task(
                 if !still_running {
                     break; // 进程已退出,交给 stdout 线程收尾
                 }
-                let idle = wd_activity.lock().map(|t| t.elapsed().as_secs()).unwrap_or(0);
+                let idle = wd_activity
+                    .lock()
+                    .map(|t| t.elapsed().as_secs())
+                    .unwrap_or(0);
                 if idle > IDLE_LIMIT_SECS {
                     wd_handle.cancelled.store(true, Ordering::SeqCst);
                     wd_ch
@@ -493,9 +526,7 @@ fn map_line(
                 message: msg,
             }]
         }
-        "item.started" | "item.completed" | "item.updated" => {
-            map_item(&v, t == "item.completed")
-        }
+        "item.started" | "item.completed" | "item.updated" => map_item(&v, t == "item.completed"),
         other => vec![DomainEvent::Raw {
             codex_type: other.to_string(),
             json: v,
@@ -724,7 +755,9 @@ mod tests {
             &mut u,
         );
         assert_eq!(tid.as_deref(), Some("abc-123"));
-        assert!(matches!(&evs[0], DomainEvent::ThreadStarted { thread_id } if thread_id == "abc-123"));
+        assert!(
+            matches!(&evs[0], DomainEvent::ThreadStarted { thread_id } if thread_id == "abc-123")
+        );
     }
 
     #[test]
@@ -737,7 +770,9 @@ mod tests {
             &mut u,
         );
         assert_eq!(u.input_tokens, 44467);
-        assert!(matches!(&evs[0], DomainEvent::TurnCompleted { usage } if usage.output_tokens == 74));
+        assert!(
+            matches!(&evs[0], DomainEvent::TurnCompleted { usage } if usage.output_tokens == 74)
+        );
     }
 
     #[test]
@@ -769,7 +804,9 @@ mod tests {
             &mut tid,
             &mut u,
         );
-        assert!(matches!(&evs[0], DomainEvent::AssistantMessage { text } if text.contains("chart.png")));
+        assert!(
+            matches!(&evs[0], DomainEvent::AssistantMessage { text } if text.contains("chart.png"))
+        );
     }
 
     #[test]
@@ -777,7 +814,9 @@ mod tests {
         let mut tid = None;
         let mut u = Usage::default();
         let evs = map_line(r#"{"type":"some.future.event","foo":1}"#, &mut tid, &mut u);
-        assert!(matches!(&evs[0], DomainEvent::Raw { codex_type, .. } if codex_type == "some.future.event"));
+        assert!(
+            matches!(&evs[0], DomainEvent::Raw { codex_type, .. } if codex_type == "some.future.event")
+        );
     }
 
     #[test]

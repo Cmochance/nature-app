@@ -1,0 +1,400 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+// 自建零依赖 i18n:中/英整页切换,绝不中英混排。
+// 专名(Nature App / Codex / skill id / 文件名 / 命令 / 路径 / 版本号 / MCP / PDF 等)
+// 在两种语言下保持一致,不进字典——这是国际化通行做法。
+
+export type Lang = "zh" | "en";
+export type LangPref = Lang | "system";
+
+const STORE_KEY = "nature-lang";
+
+function resolveSystem(): Lang {
+  if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")) return "zh";
+  return "en";
+}
+
+function resolve(pref: LangPref): Lang {
+  return pref === "system" ? resolveSystem() : pref;
+}
+
+type Dict = Record<string, string>;
+
+const ZH: Dict = {
+  "common.newTask": "新建任务",
+  "common.search": "搜索技能、会话…",
+  "common.cancel": "取消",
+  "common.back": "返回",
+  "common.viewAll": "查看全部",
+  "common.optional": "可选",
+  "common.required": "必填",
+  "common.settings": "设置",
+
+  "nav.home": "首页",
+  "nav.settings": "设置 / 体检",
+  "nav.recent": "最近",
+  "nav.skills": "技能",
+
+  "status.running": "运行中",
+  "status.done": "完成",
+  "status.ready": "就绪",
+  "status.created": "新建",
+  "status.signedIn": "已登录",
+  "status.notSignedIn": "未登录",
+
+  "badge.stable": "稳定版",
+  "badge.beta": "测试版",
+  "badge.draft": "草稿",
+
+  "engine.signedIn": "Codex 已登录",
+  "engine.detecting": "正在检测引擎…",
+
+  "home.eyebrow": "研究流水线 · 本地运行",
+  "home.titleA": "从检索到投稿,",
+  "home.titleB": "一条流水线跑完。",
+  "home.sub": "描述你要推进的研究任务,或挑一个技能开始 —— 全程在你的机器上,由 Codex 驱动。",
+  "home.composerPh": "例如:把这篇 PDF 的方法部分精读成中英对照,并提取关键引用…",
+  "home.workdir": "工作目录",
+  "home.attach": "附加文件",
+  "home.allowNetwork": "允许联网",
+  "home.startTask": "开始任务",
+  "home.skillsTitle": "技能",
+  "home.skillsSub": "按研究流程编排 · 共 {n} 个",
+  "home.recentTitle": "最近任务",
+
+  "group.searchRead": "检索 & 阅读",
+  "group.writePolish": "写作 · 润色 · 引用",
+  "group.figData": "图 & 数据",
+  "group.reviewResp": "评审 · 回复",
+  "group.convert": "转换产出",
+
+  "task.configEyebrow": "配置任务",
+  "task.workdir": "工作目录",
+  "task.inputFiles": "输入文件",
+  "task.chooseDir": "选择目录",
+  "task.chooseFile": "选择文件",
+  "task.noWorkdir": "(未选择)",
+  "task.noFiles": "(可选)",
+  "task.filesCount": "{n} 个文件",
+  "task.chartRef": "图型参考",
+  "task.atlasHint": "图集 · 可选",
+  "task.atlasSummary": "从 10 类图型里选一个引导绘图",
+  "task.descPh": "用一句话描述你的需求…",
+  "task.allowNetwork": "允许联网",
+  "task.fullSandbox": "全放开沙箱",
+  "task.readyHint": "必填项已就绪 · 准备运行",
+  "task.runTask": "运行任务",
+  "task.fallbackNote": "该技能无预设选项,直接在下方描述需求即可。",
+
+  "run.you": "你",
+  "run.agent": "Nature Agent",
+  "run.thought": "思考",
+  "run.steps": "{n} 步",
+  "run.planTitle": "执行计划",
+  "run.cmdDone": "完成",
+  "run.cmdRunning": "运行中",
+  "run.turnComplete": "本轮完成",
+  "run.input": "输入",
+  "run.output": "输出",
+  "run.cached": "缓存",
+  "run.reasoning": "推理",
+  "run.composerPh": "追加指令,或开始新一轮…（⏎ 发送,⇧⏎ 换行)",
+  "run.send": "发送",
+  "run.stop": "取消",
+  "run.consoleEmpty": "控制台输出会显示在这里…",
+  "run.tokensTotal": "累计用量",
+  "run.startFailed": "启动失败:{msg}",
+  "run.cancelRequested": "已请求取消",
+  "run.cancelled": "已取消",
+  "run.finished": "结束",
+  "run.emptyWarn": "退出码为 0,但未检测到任何产物或回复 —— 可能未真正完成(常见:沙箱拦截写入 / 指令未触发技能)。",
+
+  "art.title": "产物",
+  "art.reveal": "在 Finder 显示",
+  "art.export": "导出副本",
+  "art.copy": "复制",
+  "art.openEditor": "在编辑器打开",
+  "art.iterate": "再改一版",
+  "art.iterateBasedOn": "基于 {file}",
+  "art.iteratePh": "例如:改横向、加显著性标记、对照换灰色…",
+  "art.generate": "生成新版本",
+  "art.result": "最终结果",
+  "art.loading": "加载中…",
+  "art.empty": "产物会显示在这里",
+
+  "cite.exportZotero": "导出到 Zotero",
+  "cite.copied": "已复制",
+
+  "settings.title": "环境体检 & 偏好",
+  "settings.eyebrow": "设置",
+  "settings.codexEngine": "Codex 引擎",
+  "settings.codexSub": "驱动全部技能的本地 CLI",
+  "settings.signin": "登录态",
+  "settings.version": "版本",
+  "settings.path": "路径",
+  "settings.notSignedInHint": "未登录(请在终端运行 codex login)",
+  "settings.pythonEnv": "Python 环境(uv)",
+  "settings.pythonSub": "隔离 venv,根治系统 Python 冲突",
+  "settings.python": "Python",
+  "settings.installDeps": "预装依赖(uv sync)",
+  "settings.installing": "安装中…",
+  "settings.installHint": "首次或更新技能后运行",
+  "settings.externalTools": "外部工具",
+  "settings.toolsSub": "技能按需调用",
+  "settings.notFound": "未找到",
+  "settings.prefs": "偏好",
+  "settings.prefsSub": "默认行为与外观",
+  "settings.language": "界面语言",
+  "settings.languageDesc": "中文 / English / 跟随系统",
+  "settings.appearance": "外观主题",
+  "settings.appearanceDesc": "深色 / 浅色 / 跟随系统",
+  "settings.dark": "深色",
+  "settings.light": "浅色",
+  "settings.system": "跟随系统",
+  "settings.allowNetDefault": "默认允许联网",
+  "settings.allowNetDesc": "技能可访问网络(检索 / MCP 需要)",
+  "settings.defaultModel": "默认模型",
+  "settings.defaultModelDesc": "codex exec 使用的模型",
+  "settings.advanced": "高级",
+  "settings.advancedSub": "仅在明确知道风险时启用",
+  "settings.fullSandbox": "全放开沙箱",
+  "settings.fullSandboxDesc": "解除工作目录限制,技能可读写整机文件 —— 谨慎",
+  "settings.notChecked": "尚未检测",
+  "settings.checking": "检测中…",
+
+  "run.ctaNotLoggedIn": " · 请在终端运行 codex login",
+  "run.ctaNetworkBlocked": " · 勾选「允许联网」后重试",
+  "run.ctaNotInstalled": " · 未检测到 codex,请先安装",
+  "run.cmdFailed": "失败",
+  "run.exit": "退出码",
+  "art.original": "原稿",
+  "art.polished": "润色后",
+  "settings.setupWarn": "首启自举有失败(技能同步 / Python 环境),可在下方重试。",
+  "settings.skillSync": "技能同步",
+  "settings.skillSyncSub": "把打包的 nature-skills 同步到 ~/.codex/skills/",
+  "settings.checkSync": "检查 / 同步技能",
+  "settings.syncing": "同步中…",
+  "settings.upToDate": "已是最新",
+  "settings.syncedN": "已同步 {n} 个目录",
+  "settings.opFailed": "失败:{msg}",
+  "settings.litMcp": "文献检索 MCP",
+  "settings.registered": "已注册",
+  "settings.notRegistered": "未注册",
+  "settings.registering": "注册中…",
+  "settings.reRegister": "重新注册",
+  "settings.registerMcp": "注册 MCP",
+  "settings.emailPh": "you@example.com(PubMed 邮箱)",
+  "settings.emailInvalid": "请输入有效邮箱(用于 PubMed 礼貌标识)",
+  "settings.dangerConfirm": "全放开沙箱(dangerFullAccess):Codex 将不受文件/网络沙箱限制地执行命令。仅在你完全信任任务时启用。确定开启?",
+};
+
+const EN: Dict = {
+  "common.newTask": "New task",
+  "common.search": "Search skills, sessions…",
+  "common.cancel": "Cancel",
+  "common.back": "Back",
+  "common.viewAll": "View all",
+  "common.optional": "optional",
+  "common.required": "required",
+  "common.settings": "Settings",
+
+  "nav.home": "Home",
+  "nav.settings": "Settings",
+  "nav.recent": "Recent",
+  "nav.skills": "Skills",
+
+  "status.running": "Running",
+  "status.done": "Done",
+  "status.ready": "Ready",
+  "status.created": "Created",
+  "status.signedIn": "Signed in",
+  "status.notSignedIn": "Signed out",
+
+  "badge.stable": "Stable",
+  "badge.beta": "Beta",
+  "badge.draft": "Draft",
+
+  "engine.signedIn": "Codex signed in",
+  "engine.detecting": "Detecting engine…",
+
+  "home.eyebrow": "Research pipeline · Runs locally",
+  "home.titleA": "From search to submission —",
+  "home.titleB": "one pipeline, end to end.",
+  "home.sub": "Describe the research task you want to push forward, or pick a skill to begin — all on your machine, powered by Codex.",
+  "home.composerPh": "e.g. Close-read the Methods of this PDF into a bilingual view and pull the key citations…",
+  "home.workdir": "Working dir",
+  "home.attach": "Attach files",
+  "home.allowNetwork": "Allow network",
+  "home.startTask": "Start task",
+  "home.skillsTitle": "Skills",
+  "home.skillsSub": "Organized by research flow · {n} total",
+  "home.recentTitle": "Recent tasks",
+
+  "group.searchRead": "Search & Read",
+  "group.writePolish": "Write · Polish · Cite",
+  "group.figData": "Figures & Data",
+  "group.reviewResp": "Review · Response",
+  "group.convert": "Convert & Export",
+
+  "task.configEyebrow": "Configure task",
+  "task.workdir": "Working dir",
+  "task.inputFiles": "Input files",
+  "task.chooseDir": "Choose dir",
+  "task.chooseFile": "Choose file",
+  "task.noWorkdir": "(none)",
+  "task.noFiles": "(optional)",
+  "task.filesCount": "{n} files",
+  "task.chartRef": "Chart reference",
+  "task.atlasHint": "atlas · optional",
+  "task.atlasSummary": "Pick one of 10 chart types to guide plotting",
+  "task.descPh": "Describe what you need in one line…",
+  "task.allowNetwork": "Allow network",
+  "task.fullSandbox": "Full access sandbox",
+  "task.readyHint": "Required fields ready · ready to run",
+  "task.runTask": "Run task",
+  "task.fallbackNote": "This skill has no preset options — just describe your need below.",
+
+  "run.you": "You",
+  "run.agent": "Nature Agent",
+  "run.thought": "Thought",
+  "run.steps": "{n} steps",
+  "run.planTitle": "Execution plan",
+  "run.cmdDone": "Done",
+  "run.cmdRunning": "Running",
+  "run.turnComplete": "Turn complete",
+  "run.input": "in",
+  "run.output": "out",
+  "run.cached": "cached",
+  "run.reasoning": "reasoning",
+  "run.composerPh": "Add an instruction, or start a new turn… (⏎ send, ⇧⏎ newline)",
+  "run.send": "Send",
+  "run.stop": "Cancel",
+  "run.consoleEmpty": "Console output will appear here…",
+  "run.tokensTotal": "Total usage",
+  "run.startFailed": "Failed to start: {msg}",
+  "run.cancelRequested": "Cancellation requested",
+  "run.cancelled": "Cancelled",
+  "run.finished": "Finished",
+  "run.emptyWarn": "Exit code 0, but no artifact or reply was detected — it may not have truly completed (often: sandbox blocked writes, or the instruction did not trigger a skill).",
+
+  "art.title": "Artifacts",
+  "art.reveal": "Reveal in Finder",
+  "art.export": "Export copy",
+  "art.copy": "Copy",
+  "art.openEditor": "Open in editor",
+  "art.iterate": "Iterate",
+  "art.iterateBasedOn": "based on {file}",
+  "art.iteratePh": "e.g. make it horizontal, add significance marks, gray for control…",
+  "art.generate": "Generate new version",
+  "art.result": "Final result",
+  "art.loading": "Loading…",
+  "art.empty": "Artifacts will appear here",
+
+  "cite.exportZotero": "Export to Zotero",
+  "cite.copied": "Copied",
+
+  "settings.title": "Doctor & Preferences",
+  "settings.eyebrow": "Settings",
+  "settings.codexEngine": "Codex engine",
+  "settings.codexSub": "Local CLI that powers every skill",
+  "settings.signin": "Sign-in",
+  "settings.version": "Version",
+  "settings.path": "Path",
+  "settings.notSignedInHint": "Signed out (run codex login in a terminal)",
+  "settings.pythonEnv": "Python env (uv)",
+  "settings.pythonSub": "Isolated venv, avoids system Python conflicts",
+  "settings.python": "Python",
+  "settings.installDeps": "Install deps (uv sync)",
+  "settings.installing": "Installing…",
+  "settings.installHint": "Run on first launch or after updating skills",
+  "settings.externalTools": "External tools",
+  "settings.toolsSub": "Invoked by skills on demand",
+  "settings.notFound": "Not found",
+  "settings.prefs": "Preferences",
+  "settings.prefsSub": "Default behavior and appearance",
+  "settings.language": "Interface language",
+  "settings.languageDesc": "Chinese / English / Follow system",
+  "settings.appearance": "Appearance",
+  "settings.appearanceDesc": "Dark / Light / Follow system",
+  "settings.dark": "Dark",
+  "settings.light": "Light",
+  "settings.system": "System",
+  "settings.allowNetDefault": "Allow network by default",
+  "settings.allowNetDesc": "Skills can access the network (needed for Search / MCP)",
+  "settings.defaultModel": "Default model",
+  "settings.defaultModelDesc": "Model used by codex exec",
+  "settings.advanced": "Advanced",
+  "settings.advancedSub": "Enable only if you understand the risk",
+  "settings.fullSandbox": "Full access sandbox",
+  "settings.fullSandboxDesc": "Removes the working-dir limit; skills can read/write anywhere — caution",
+  "settings.notChecked": "Not checked yet",
+  "settings.checking": "Checking…",
+
+  "run.ctaNotLoggedIn": " · run codex login in a terminal",
+  "run.ctaNetworkBlocked": " · enable “Allow network” and retry",
+  "run.ctaNotInstalled": " · codex not found — install it first",
+  "run.cmdFailed": "Failed",
+  "run.exit": "exit",
+  "art.original": "Original",
+  "art.polished": "Polished",
+  "settings.setupWarn": "First-launch bootstrap had failures (skill sync / Python env). Retry below.",
+  "settings.skillSync": "Skill sync",
+  "settings.skillSyncSub": "Sync bundled nature-skills to ~/.codex/skills/",
+  "settings.checkSync": "Check / sync skills",
+  "settings.syncing": "Syncing…",
+  "settings.upToDate": "Up to date",
+  "settings.syncedN": "Synced {n} dirs",
+  "settings.opFailed": "Failed: {msg}",
+  "settings.litMcp": "Literature search MCP",
+  "settings.registered": "Registered",
+  "settings.notRegistered": "Not registered",
+  "settings.registering": "Registering…",
+  "settings.reRegister": "Re-register",
+  "settings.registerMcp": "Register MCP",
+  "settings.emailPh": "you@example.com (PubMed email)",
+  "settings.emailInvalid": "Enter a valid email (PubMed politeness identifier)",
+  "settings.dangerConfirm": "Full access sandbox (dangerFullAccess): Codex will run commands without file/network sandboxing. Enable only if you fully trust the task. Continue?",
+};
+
+const TABLE: Record<Lang, Dict> = { zh: ZH, en: EN };
+
+export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {
+  let s = TABLE[lang][key] ?? TABLE.zh[key] ?? key;
+  if (vars) for (const k of Object.keys(vars)) s = s.replace(`{${k}}`, String(vars[k]));
+  return s;
+}
+
+interface LangCtx {
+  lang: Lang;
+  pref: LangPref;
+  setPref: (p: LangPref) => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}
+
+const Ctx = createContext<LangCtx | null>(null);
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const [pref, setPrefState] = useState<LangPref>(() => {
+    const saved = (typeof localStorage !== "undefined" && localStorage.getItem(STORE_KEY)) as LangPref | null;
+    return saved ?? "zh";
+  });
+  const lang = resolve(pref);
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
+
+  function setPref(p: LangPref) {
+    setPrefState(p);
+    try { localStorage.setItem(STORE_KEY, p); } catch { /* ignore */ }
+  }
+
+  const t = (key: string, vars?: Record<string, string | number>) => translate(lang, key, vars);
+  return <Ctx.Provider value={{ lang, pref, setPref, t }}>{children}</Ctx.Provider>;
+}
+
+export function useI18n(): LangCtx {
+  const c = useContext(Ctx);
+  if (!c) throw new Error("useI18n must be used within LangProvider");
+  return c;
+}

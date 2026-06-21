@@ -5,6 +5,7 @@
 //! - manifest.yaml:`always_load`(路径列表)、`axes.<name>.{detect, values(有序 map), default?, multi?}`、
 //!   `references.on_demand[].{condition, path}`。
 //! - 三档 formCapability:有 axes → axes;有 manifest 无 axes → manifestNoAxes;无 manifest(reviewer)→ proseOnly。
+//!
 //! 用 serde_yaml::Value 防御式读取,容忍各 skill 的 schema 差异。
 
 use std::path::{Path, PathBuf};
@@ -111,7 +112,10 @@ fn parse_axes(m: &serde_yaml::Value) -> Vec<Axis> {
             })
             .unwrap_or_default();
         let multi = av.get("multi").and_then(|x| x.as_bool()).unwrap_or(false);
-        let default_value = av.get("default").and_then(|x| x.as_str()).map(|s| s.to_string());
+        let default_value = av
+            .get("default")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
         out.push(Axis {
             name,
             values,
@@ -132,7 +136,11 @@ fn parse_on_demand(m: &serde_yaml::Value) -> Vec<OnDemandRef> {
                 .filter_map(|e| {
                     Some(OnDemandRef {
                         condition: e.get("condition").and_then(|c| c.as_str())?.to_string(),
-                        path: e.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string(),
+                        path: e
+                            .get("path")
+                            .and_then(|p| p.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                     })
                 })
                 .collect()
@@ -288,7 +296,12 @@ mod tests {
     fn loads_all_eleven_nature_skills() {
         let skills = load_skills(&root());
         // 11 个 nature-* skill
-        assert_eq!(skills.len(), 11, "应解析 11 个 nature-* skill,实际 {}", skills.len());
+        assert_eq!(
+            skills.len(),
+            11,
+            "应解析 11 个 nature-* skill,实际 {}",
+            skills.len()
+        );
         assert!(skills.iter().all(|s| s.id.starts_with("nature-")));
     }
 
@@ -302,7 +315,7 @@ mod tests {
         assert!(backend.blocking_gate);
         assert!(!backend.multi);
         assert_eq!(backend.values, vec!["python", "r"]); // 保持声明顺序
-        // 描述应来自 SKILL.md frontmatter(含中文触发词)
+                                                         // 描述应来自 SKILL.md frontmatter(含中文触发词)
         assert!(fig.description.contains("科研绘图") || fig.description.contains("figure"));
     }
 
