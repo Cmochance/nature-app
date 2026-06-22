@@ -21,7 +21,6 @@ function resolve(pref: LangPref): Lang {
 type Dict = Record<string, string>;
 
 const ZH: Dict = {
-  "common.newTask": "新建任务",
   "common.search": "搜索技能、会话…",
   "common.cancel": "取消",
   "common.back": "返回",
@@ -46,8 +45,6 @@ const ZH: Dict = {
   "badge.beta": "测试版",
   "badge.draft": "草稿",
 
-  "engine.signedIn": "Codex 已登录",
-  "engine.detecting": "正在检测引擎…",
 
   "home.eyebrow": "研究流水线 · 本地运行",
   "home.titleA": "从检索到投稿,",
@@ -132,7 +129,7 @@ const ZH: Dict = {
   "settings.signin": "登录态",
   "settings.version": "版本",
   "settings.path": "路径",
-  "settings.notSignedInHint": "未登录(请在终端运行 codex login)",
+  "settings.notSignedInHint": "未登录(请在设置页登录)",
   "settings.pythonEnv": "Python 环境(uv)",
   "settings.pythonSub": "隔离 venv,根治系统 Python 冲突",
   "settings.python": "Python",
@@ -162,9 +159,9 @@ const ZH: Dict = {
   "settings.notChecked": "尚未检测",
   "settings.checking": "检测中…",
 
-  "run.ctaNotLoggedIn": " · 请在终端运行 codex login",
+  "run.ctaNotLoggedIn": " · 请到设置页登录",
   "run.ctaNetworkBlocked": " · 勾选「允许联网」后重试",
-  "run.ctaNotInstalled": " · 未检测到 codex,请先安装",
+  "run.ctaNotInstalled": " · codex sidecar 缺失或损坏,请重新构建或重拉",
   "run.cmdFailed": "失败",
   "run.exit": "退出码",
   "art.original": "原稿",
@@ -235,7 +232,6 @@ const ZH: Dict = {
 };
 
 const EN: Dict = {
-  "common.newTask": "New task",
   "common.search": "Search skills, sessions…",
   "common.cancel": "Cancel",
   "common.back": "Back",
@@ -260,8 +256,6 @@ const EN: Dict = {
   "badge.beta": "Beta",
   "badge.draft": "Draft",
 
-  "engine.signedIn": "Codex signed in",
-  "engine.detecting": "Detecting engine…",
 
   "home.eyebrow": "Research pipeline · Runs locally",
   "home.titleA": "From search to submission —",
@@ -346,7 +340,7 @@ const EN: Dict = {
   "settings.signin": "Sign-in",
   "settings.version": "Version",
   "settings.path": "Path",
-  "settings.notSignedInHint": "Signed out (run codex login in a terminal)",
+  "settings.notSignedInHint": "Signed out (sign in on the Settings page)",
   "settings.pythonEnv": "Python env (uv)",
   "settings.pythonSub": "Isolated venv, avoids system Python conflicts",
   "settings.python": "Python",
@@ -376,9 +370,9 @@ const EN: Dict = {
   "settings.notChecked": "Not checked yet",
   "settings.checking": "Checking…",
 
-  "run.ctaNotLoggedIn": " · run codex login in a terminal",
+  "run.ctaNotLoggedIn": " · sign in on the Settings page",
   "run.ctaNetworkBlocked": " · enable “Allow network” and retry",
-  "run.ctaNotInstalled": " · codex not found — install it first",
+  "run.ctaNotInstalled": " · codex sidecar missing or corrupted — rebuild or re-fetch",
   "run.cmdFailed": "Failed",
   "run.exit": "exit",
   "art.original": "Original",

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { EngineStatus } from "./types/engine";
 import type { SkillDescriptor } from "./types/skill";
 import type { PlotSpec, PlotData } from "./types/plot";
 import { LangProvider, useI18n } from "./i18n";
 import { ThemeProvider } from "./theme";
 import { skillName } from "./skillsMeta";
 import { useRun, type LaunchSpec } from "./useRun";
+import { useDoctor } from "./useDoctor";
 import Sidebar, { type ViewName, type RecentItem } from "./components/Sidebar";
 import Home from "./components/Home";
 import TaskConfig from "./components/TaskConfig";
@@ -39,7 +39,6 @@ const DEMO_PLOT_DATA: PlotData = {
 
 function Shell() {
   const { t, lang } = useI18n();
-  const [engine, setEngine] = useState<EngineStatus | null>(null);
   const [skills, setSkills] = useState<SkillDescriptor[]>([]);
   const [skillsError, setSkillsError] = useState<string | null>(null);
 
@@ -52,12 +51,12 @@ function Shell() {
   const [defaultNetwork, setDefaultNetwork] = useState(true);
 
   const run = useRun({ dangerSandbox, lang, t });
+  const doctor = useDoctor(); // 体检状态提到 App 层持有,跨视图存活、不每次重探
 
   const idRef = useRef(0);
   const activeRunIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    invoke<EngineStatus>("check_engine").then(setEngine).catch(() => setEngine(null));
     invoke<SkillDescriptor[]>("list_skills")
       .then((s) => { setSkills(s); setSkillsError(null); })
       .catch((e) => setSkillsError(String(e)));
@@ -117,11 +116,9 @@ function Shell() {
     <div className="shell" data-view={view}>
       <Sidebar
         skills={skills}
-        engine={engine}
         view={view}
         recent={recent}
         onView={setView}
-        onNewTask={() => setView("home")}
         onOpenSkill={openSkill}
         onOpenRecent={openRecent}
       />
@@ -144,7 +141,7 @@ function Shell() {
 
       {view === "settings" && (
         <section className="main">
-          <Settings dangerSandbox={dangerSandbox} onDangerChange={setDangerSandbox} defaultNetwork={defaultNetwork} onNetworkChange={setDefaultNetwork} />
+          <Settings doctor={doctor} dangerSandbox={dangerSandbox} onDangerChange={setDangerSandbox} defaultNetwork={defaultNetwork} onNetworkChange={setDefaultNetwork} />
         </section>
       )}
     </div>

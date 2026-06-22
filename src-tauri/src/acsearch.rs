@@ -5,16 +5,17 @@
 //! (uv run --with ...),但 `<MCP_SERVER_DIR>` 换成安装后的实际路径、`uv` 用绝对路径
 //! (防打包后 PATH 缺失)。首版仅免费源(PubMed 需邮箱;Scopus/ScienceDirect 的 Elsevier
 //! key 不配 → 自然不可用)。
+//!
+//! 全部 codex 调用走 `engine::codex_command()`(隔离 CODEX_HOME),注册写进项目自己的
+//! 配置环境,与本地 `~/.codex` 不交叉。
 
 use std::path::PathBuf;
-use std::process::Command;
 
 const SERVER_NAME: &str = "academic-search";
 
-/// 安装后 MCP server 所在目录(install_skills 已把 skill 拷到 ~/.codex/skills/)。
+/// 安装后 MCP server 所在目录(install_skills 已把 skill 拷到隔离 CODEX_HOME 的 skills/)。
 pub fn mcp_server_dir() -> PathBuf {
-    PathBuf::from(std::env::var("HOME").unwrap_or_default())
-        .join(".codex")
+    crate::engine::codex_home()
         .join("skills")
         .join("nature-academic-search")
         .join("mcp-server")
@@ -22,8 +23,7 @@ pub fn mcp_server_dir() -> PathBuf {
 
 /// 是否已注册(`codex mcp list` 含该名)。
 pub fn is_registered() -> bool {
-    let codex = crate::engine::resolve_codex_bin();
-    Command::new(&codex)
+    crate::engine::codex_command()
         .args(["mcp", "list"])
         .output()
         .ok()
@@ -35,20 +35,23 @@ pub fn is_registered() -> bool {
 }
 
 /// 注册 academic-search MCP(免费源,需 PubMed 邮箱)。幂等:先移除再添加。
+/// T9:add 失败时明确告知原注册已失效(remove 已执行),避免用户以为一切正常。
 pub fn register(email: &str) -> Result<(), String> {
-    let codex = crate::engine::resolve_codex_bin();
     let uv = crate::pyenv::resolve_uv().ok_or("uv 不可用(请先安装 uv)")?;
     let dir = mcp_server_dir();
     if !dir.exists() {
         return Err(format!(
-            "MCP server 目录不存在: {}(请先确保 skills 已同步到 ~/.codex/skills/)",
+            "MCP server 目录不存在: {}(请先确保 skills 已同步到隔离 CODEX_HOME 的 skills/)",
             dir.display()
         ));
     }
     let dir_s = dir.to_string_lossy().to_string();
 
+    // T9:remove 前记录是否已注册,add 失败时据此给出准确提示
+    let was_registered = is_registered();
+
     // 幂等:先移除旧注册(忽略错误)
-    let _ = Command::new(&codex)
+    let _ = crate::engine::codex_command()
         .args(["mcp", "remove", SERVER_NAME])
         .output();
 
@@ -78,13 +81,22 @@ pub fn register(email: &str) -> Result<(), String> {
         "academic_search_server.py".into(),
     ];
 
-    let out = Command::new(&codex)
+    let out = crate::engine::codex_command()
         .args(&args)
         .output()
         .map_err(|e| format!("codex mcp add 执行失败: {e}"))?;
     if out.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        let raw = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        // T9:add 失败但 remove 已执行 → 原注册已失效,明确告知需重试
+        let hint = if was_registered {
+            format!(
+                "{raw}\n（原注册已被移除且重新添加失败,请检查参数后重试 register_academic_search）"
+            )
+        } else {
+            raw
+        };
+        Err(hint)
     }
 }

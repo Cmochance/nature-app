@@ -55,11 +55,6 @@ input,textarea { font:inherit; }
 .brand-mark svg { width:16px; height:16px; display:block; stroke:#fff; }
 .brand-name { font-family:var(--display); font-weight:600; font-size:15px; letter-spacing:-.01em; }
 .brand-name .dim { color:var(--text-faint); font-weight:500; }
-.new-task { margin:4px 12px 12px; display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--accent-soft); color:var(--accent-strong); border:1px solid var(--accent-line); border-radius:var(--radius-sm); font-weight:600; font-size:13px; width:calc(100% - 24px); transition:background .15s ease,transform .05s ease; }
-.new-task:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); }
-.new-task:active { transform:translateY(1px); }
-.new-task svg { width:15px; height:15px; }
-.new-task .kbd { margin-left:auto; }
 .search { margin:0 12px 8px; display:flex; align-items:center; gap:8px; width:calc(100% - 24px); padding:7px 10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-dim); font-size:13px; }
 .search:hover { border-color:var(--border-strong); }
 .search svg { width:14px; height:14px; }
@@ -81,25 +76,23 @@ input,textarea { font:inherit; }
 .nav-dot.stable { background:var(--ok); } .nav-dot.beta { background:var(--accent); } .nav-dot.draft { background:var(--text-faint); }
 .nav-item .nav-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .nav-item .nav-zh { font-weight:600; color:inherit; }
-.nav-item .nav-id { font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-left:6px; }
 .nav-item.run-state .nav-text { display:flex; flex-direction:column; gap:1px; }
 .nav-item .nav-sub { font-size:11px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .live-dot { width:7px; height:7px; border-radius:99px; background:var(--accent); flex-shrink:0; box-shadow:0 0 0 0 var(--accent); animation:pulse-dot 1.8s ease-out infinite; }
 @keyframes pulse-dot { 0%{box-shadow:0 0 0 0 var(--accent-soft);} 70%{box-shadow:0 0 0 6px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
-.engine-bar { border-top:1px solid var(--border); padding:10px 12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
-.engine-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); }
-.engine-row .dot { width:7px; height:7px; border-radius:99px; background:var(--text-faint); }
-.engine-row .dot.ok { background:var(--ok); box-shadow:0 0 0 3px var(--ok-soft); }
-.engine-ver { font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-left:auto; }
-.engine-tools { display:flex; gap:8px; flex-wrap:wrap; }
-.tool-chip { font-size:10.5px; font-family:var(--mono); color:var(--text-dim); display:inline-flex; align-items:center; gap:4px; }
-.tool-chip .dot { width:5px; height:5px; border-radius:99px; background:var(--ok); }
-.tool-chip .dot.err { background:var(--err); }
-.engine-actions { display:flex; gap:6px; margin-top:2px; }
 .icon-btn { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--border); background:var(--surface-2); border-radius:var(--radius-xs); color:var(--text-dim); transition:background .12s ease,color .12s ease,border-color .12s ease; }
 .icon-btn:hover { background:var(--surface-3); color:var(--text); border-color:var(--border-strong); }
 .icon-btn svg { width:15px; height:15px; }
 .icon-btn.wide { width:auto; padding:0 10px; gap:6px; font-size:12px; }
+
+/* 侧栏底部三行按钮:设置 / 主题 / 语言 */
+.side-foot { border-top:1px solid var(--border); padding:8px; display:flex; flex-direction:column; gap:4px; background:var(--surface); }
+.side-action { display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:0; background:none; border-radius:var(--radius-xs); color:var(--text-dim); font-size:13px; text-align:left; transition:background .12s ease,color .12s ease; }
+.side-action:hover { background:var(--surface-2); color:var(--text); }
+.side-action.active { background:var(--accent-soft); color:var(--text); }
+.side-action svg { width:16px; height:16px; color:var(--text-faint); flex-shrink:0; }
+.side-action.active svg { color:var(--accent-strong); }
+.side-action span { flex:1; }
 
 /* 通用 */
 .scroll-area { flex:1; overflow-y:auto; }

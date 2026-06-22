@@ -25,3 +25,6 @@ dist-ssr
 
 # 大体积 figure 演示语料(24M,可从 pinned commit 重建);保留其余 skill 内容
 /skills-bundled/nature-figure/assets/figures4papers/
+
+# codex sidecar 二进制(数百 MB,不入库);本地/CI 用 scripts/fetch-codex.sh 按平台拉取
+/src-tauri/binaries/

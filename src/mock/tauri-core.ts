@@ -137,6 +137,13 @@ export async function invoke<T = unknown>(
       await delay(300);
       return MOCK_ENGINE as unknown as T;
 
+    case "codex_login":
+      await delay(500);
+      return undefined as unknown as T;
+
+    case "codex_login_cancel":
+      return undefined as unknown as T;
+
     case "preview_plot": {
       const req = (args?.request as Record<string, unknown>) ?? {};
       await delay(250);
