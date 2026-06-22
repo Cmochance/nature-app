@@ -51,16 +51,16 @@ trap 'rm -rf "$TMP"' EXIT
 curl -fSL "$URL" -o "$TMP/codex.tar.gz"
 tar -xzf "$TMP/codex.tar.gz" -C "$TMP"
 
-# 解压后二进制名为 codex / codex.exe(T5:优先标准名,缺失则递归查找,避免 SIGPIPE)
+# 解压后二进制名为 codex / codex.exe / codex-<triple>(T5:优先标准名,缺失则递归查找,避免 SIGPIPE)
 BIN="$TMP/codex"; [ -f "$TMP/codex.exe" ] && BIN="$TMP/codex.exe"
 if [ ! -f "$BIN" ]; then
-  # 兜底:递归查找 codex / codex.exe(tar 可能把二进制放在子目录)
-  BIN="$(find "$TMP" -maxdepth 3 -type f \( -name 'codex' -o -name 'codex.exe' \) -print -quit)"
+  # 兜底:递归查找 codex*(release tar 内文件名可能带 triple 后缀,如 codex-aarch64-apple-darwin)
+  BIN="$(find "$TMP" -maxdepth 3 -type f -name 'codex*' ! -name '*.tar.gz' -print -quit)"
 fi
 if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
-  echo "解压后未找到 codex 二进制(预期 codex 或 codex.exe)" >&2
+  echo "解压后未找到 codex 二进制(预期 codex / codex.exe / codex-<triple>)" >&2
   echo "解压内容:" >&2
-  find "$TMP" -maxdepth 3 -type f -print -quit >&2 || true
+  find "$TMP" -maxdepth 3 -type f ! -name '*.tar.gz' -print -quit >&2 || true
   exit 1
 fi
 
