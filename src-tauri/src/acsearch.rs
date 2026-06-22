@@ -35,6 +35,7 @@ pub fn is_registered() -> bool {
 }
 
 /// 注册 academic-search MCP(免费源,需 PubMed 邮箱)。幂等:先移除再添加。
+/// T9:add 失败时明确告知原注册已失效(remove 已执行),避免用户以为一切正常。
 pub fn register(email: &str) -> Result<(), String> {
     let uv = crate::pyenv::resolve_uv().ok_or("uv 不可用(请先安装 uv)")?;
     let dir = mcp_server_dir();
@@ -45,6 +46,9 @@ pub fn register(email: &str) -> Result<(), String> {
         ));
     }
     let dir_s = dir.to_string_lossy().to_string();
+
+    // T9:remove 前记录是否已注册,add 失败时据此给出准确提示
+    let was_registered = is_registered();
 
     // 幂等:先移除旧注册(忽略错误)
     let _ = crate::engine::codex_command()
@@ -84,6 +88,15 @@ pub fn register(email: &str) -> Result<(), String> {
     if out.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        let raw = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        // T9:add 失败但 remove 已执行 → 原注册已失效,明确告知需重试
+        let hint = if was_registered {
+            format!(
+                "{raw}\n（原注册已被移除且重新添加失败,请检查参数后重试 register_academic_search）"
+            )
+        } else {
+            raw
+        };
+        Err(hint)
     }
 }
