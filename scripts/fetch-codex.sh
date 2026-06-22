@@ -51,12 +51,16 @@ trap 'rm -rf "$TMP"' EXIT
 curl -fSL "$URL" -o "$TMP/codex.tar.gz"
 tar -xzf "$TMP/codex.tar.gz" -C "$TMP"
 
-# 解压后二进制名为 codex / codex.exe;严格判定标准名,缺失则明确报错(T5)
+# 解压后二进制名为 codex / codex.exe(T5:优先标准名,缺失则递归查找,避免 SIGPIPE)
 BIN="$TMP/codex"; [ -f "$TMP/codex.exe" ] && BIN="$TMP/codex.exe"
 if [ ! -f "$BIN" ]; then
-  echo "解压后未找到标准命名的 codex 二进制(预期 codex 或 codex.exe)" >&2
+  # 兜底:递归查找 codex / codex.exe(tar 可能把二进制放在子目录)
+  BIN="$(find "$TMP" -maxdepth 3 -type f \( -name 'codex' -o -name 'codex.exe' \) -print -quit)"
+fi
+if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
+  echo "解压后未找到 codex 二进制(预期 codex 或 codex.exe)" >&2
   echo "解压内容:" >&2
-  find "$TMP" -maxdepth 2 -type f -print -quit >&2 || true
+  find "$TMP" -maxdepth 3 -type f -print -quit >&2 || true
   exit 1
 fi
 
