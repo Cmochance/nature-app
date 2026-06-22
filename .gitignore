@@ -28,3 +28,6 @@ dist-ssr
 
 # codex sidecar 二进制(数百 MB,不入库);本地/CI 用 scripts/fetch-codex.sh 按平台拉取
 /src-tauri/binaries/
+
+# 本地文档目录(可行性分析/实测结果/路线图等),不入库
+/docs/
