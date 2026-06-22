@@ -203,24 +203,108 @@ pub fn codex_command() -> Command {
     c
 }
 
-/// 在隔离 CODEX_HOME 下执行 `codex login`(浏览器 OAuth)。阻塞至完成:
-/// codex 起本地回调服务 + 打开浏览器,用户授权后写入 `$CODEX_HOME/auth.json` 并退出。
+/// 从单行文本中提取 URL(简单的 https/http 开头匹配)。
+fn extract_url(s: &str) -> Option<String> {
+    s.split_whitespace()
+        .find(|w| w.starts_with("https://") || w.starts_with("http://"))
+        .map(|w| w.to_string())
+}
+
+/// 登录流事件。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+pub enum LoginEvent {
+    /// 提取到的 OAuth 授权 URL。
+    Url(String),
+    /// 其他 stdout/stderr 输出(供日志展示)。
+    Message(String),
+    /// 登录完成。
+    Done { ok: bool, error: Option<String> },
+}
+
+/// 登录进程句柄。
+pub struct LoginHandle {
+    pub child: Mutex<Child>,
+    pub cancelled: AtomicBool,
+}
+
+/// 在隔离 CODEX_HOME 下启动 `codex login`(浏览器 OAuth)。
+/// 流式读取 stdout/stderr 并通过 channel 回传 URL/日志。
 /// 与本地 ~/.codex 登录互不影响。
-pub fn login() -> Result<(), String> {
-    let out = codex_command()
-        .arg("login")
-        .output()
+pub fn start_login(channel: Channel<LoginEvent>) -> Result<Arc<LoginHandle>, String> {
+    let mut cmd = codex_command();
+    cmd.arg("login");
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let child = cmd
+        .spawn()
         .map_err(|e| format!("启动 codex login 失败: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        Err(if msg.is_empty() {
-            "codex login 未成功".into()
-        } else {
-            msg
-        })
-    }
+
+    let handle = Arc::new(LoginHandle {
+        child: Mutex::new(child),
+        cancelled: AtomicBool::new(false),
+    });
+
+    // stdout 读取线程
+    let h = handle.clone();
+    let ch = channel.clone();
+    std::thread::spawn(move || {
+        if let Some(stdout) = h.child.lock().ok().and_then(|mut c| c.stdout.take()) {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                if h.cancelled.load(Ordering::SeqCst) {
+                    break;
+                }
+                if let Some(url) = extract_url(&line) {
+                    let _ = ch.send(LoginEvent::Url(url));
+                } else {
+                    let _ = ch.send(LoginEvent::Message(line));
+                }
+            }
+        }
+    });
+
+    // stderr 读取线程
+    let h = handle.clone();
+    let ch = channel.clone();
+    std::thread::spawn(move || {
+        if let Some(stderr) = h.child.lock().ok().and_then(|mut c| c.stderr.take()) {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                if h.cancelled.load(Ordering::SeqCst) {
+                    break;
+                }
+                if let Some(url) = extract_url(&line) {
+                    let _ = ch.send(LoginEvent::Url(url));
+                } else {
+                    let _ = ch.send(LoginEvent::Message(line));
+                }
+            }
+        }
+    });
+
+    // 超时看门狗(5 分钟)
+    const TIMEOUT_SECS: u64 = 300;
+    let h = handle.clone();
+    let ch = channel.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(TIMEOUT_SECS));
+        if h.cancelled.load(Ordering::SeqCst) {
+            return;
+        }
+        if let Ok(mut c) = h.child.lock() {
+            if matches!(c.try_wait(), Ok(None)) {
+                let _ = c.kill();
+                let _ = ch.send(LoginEvent::Done {
+                    ok: false,
+                    error: Some(format!("codex login 超时(超过 {TIMEOUT_SECS} 秒)")),
+                });
+            }
+        }
+    });
+
+    Ok(handle)
 }
 
 /// 由 TaskSpec 构造 `codex exec` argv(实测修正版)。
@@ -300,9 +384,9 @@ pub fn run_task(
         cmd.stdin(Stdio::null());
     }
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("无法启动 codex(请确认已安装并 codex login): {e}"))?;
+    let mut child = cmd.spawn().map_err(|e| {
+        format!("无法启动 codex sidecar(请重新构建应用,或运行 scripts/fetch-codex.sh 重拉): {e}")
+    })?;
 
     // stdin:写上下文用独立线程,避免大上下文(SKILL.md 常 >64KB)+ 满管道时
     // 同步写在读 stdout 之前导致的经典 pipe 死锁。写失败上报而非静默吞掉。

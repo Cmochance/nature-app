@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n, type LangPref } from "../i18n";
+import type { LoginEvent } from "../types/engine";
 import { useTheme, type ThemePref } from "../theme";
 import { Icon } from "../icons";
 import type { DoctorController } from "../useDoctor";
@@ -26,17 +28,36 @@ export default function Settings({ doctor, dangerSandbox, onDangerChange, defaul
   const [mcpOpen, setMcpOpen] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginErr, setLoginErr] = useState<string | null>(null);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [loginLog, setLoginLog] = useState<string[]>([]);
 
   async function login() {
     setLoggingIn(true);
     setLoginErr(null);
+    setAuthUrl(null);
+    setLoginLog([]);
+    const channel = new Channel<LoginEvent>();
+    channel.onmessage = (ev) => {
+      if (ev.type === "url") {
+        setAuthUrl(ev.data);
+      } else if (ev.type === "message") {
+        setLoginLog((prev) => [...prev, ev.data]);
+      }
+    };
     try {
-      await invoke("codex_login");
+      await invoke("codex_login", { onEvent: channel });
       doctor.refresh();
     } catch (e) {
       setLoginErr(String(e));
+    } finally {
+      setLoggingIn(false);
     }
+  }
+
+  async function cancelLogin() {
+    await invoke("codex_login_cancel");
     setLoggingIn(false);
+    setLoginErr("已取消");
   }
 
   // 首次进设置异步探测一次(check_doctor + get_setup_status);之后读 App 层缓存,秒开不重探
@@ -119,9 +140,25 @@ export default function Settings({ doctor, dangerSandbox, onDangerChange, defaul
               <Icon name="refresh" />{doctor.loading ? t("settings.checking") : recheckLabel}
             </button>
             {rep && !rep.engine.loggedIn && (
-              <button className="pick-btn" onClick={login} disabled={loggingIn}>
-                <Icon name="user" />{loggingIn ? (lang === "zh" ? "登录中…" : "Signing in…") : (lang === "zh" ? "登录" : "Sign in")}
+              <button className="pick-btn" onClick={loggingIn ? cancelLogin : login}>
+                <Icon name="user" />{loggingIn ? (lang === "zh" ? "取消" : "Cancel") : (lang === "zh" ? "登录" : "Sign in")}
               </button>
+            )}
+            {authUrl && (
+              <div className="p-sub" style={{ flexBasis: "100%", marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="dim">{lang === "zh" ? "授权 URL:" : "Auth URL:"}</span>
+                  <code style={{ fontSize: 12, wordBreak: "break-all" }}>{authUrl}</code>
+                  <button className="pick-btn" onClick={() => authUrl && openUrl(authUrl)} style={{ padding: "2px 8px", fontSize: 12 }}>
+                    {lang === "zh" ? "在浏览器打开" : "Open in browser"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {loginLog.length > 0 && (
+              <div className="p-sub" style={{ flexBasis: "100%", marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+                {loginLog.slice(-3).join(" · ")}
+              </div>
             )}
             {rep && <span className={"status-pill " + (rep.engine.loggedIn ? "done" : "err")}>{rep.engine.loggedIn ? t("status.ready") : t("status.notSignedIn")}</span>}
             {loginErr && <span className="p-sub warn-text" style={{ flexBasis: "100%" }}>{loginErr}</span>}

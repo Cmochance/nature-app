@@ -4,10 +4,11 @@ mod pyenv;
 mod renderer;
 mod skills;
 
-use engine::{DomainEvent, EngineState, EngineStatus, TaskSpec};
+use engine::{DomainEvent, EngineState, EngineStatus, LoginEvent, LoginHandle, TaskSpec};
 use serde::Serialize;
 use skills::SkillDescriptor;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::Manager;
@@ -23,6 +24,9 @@ struct SetupStatus {
 
 #[derive(Default)]
 struct SetupState(Arc<Mutex<SetupStatus>>);
+
+#[derive(Default)]
+struct LoginState(Arc<Mutex<Option<Arc<LoginHandle>>>>);
 
 /// 单项工具体检结果。
 #[derive(Serialize)]
@@ -173,12 +177,54 @@ fn check_engine() -> EngineStatus {
     engine::check_engine()
 }
 
-/// 在隔离 CODEX_HOME 下登录(浏览器 OAuth);与本地 ~/.codex 互不影响。阻塞至完成。
+/// 在隔离 CODEX_HOME 下登录(浏览器 OAuth);与本地 ~/.codex 互不影响。
 #[tauri::command]
-async fn codex_login() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(engine::login)
+async fn codex_login(
+    state: tauri::State<'_, LoginState>,
+    on_event: Channel<LoginEvent>,
+) -> Result<(), String> {
+    let handle = tauri::async_runtime::spawn_blocking(move || engine::start_login(on_event))
         .await
-        .map_err(|e| format!("login task join: {e}"))?
+        .map_err(|e| format!("login task join: {e}"))??;
+
+    {
+        let mut guard = state.0.lock().map_err(|e| format!("state lock: {e}"))?;
+        *guard = Some(handle.clone());
+    }
+
+    // 等待进程退出
+    let status = {
+        let mut child = handle
+            .child
+            .lock()
+            .map_err(|e| format!("child lock: {e}"))?;
+        child
+            .wait()
+            .map_err(|e| format!("等待 codex login 结束失败: {e}"))?
+    };
+
+    {
+        let mut guard = state.0.lock().map_err(|e| format!("state lock: {e}"))?;
+        *guard = None;
+    }
+
+    if !status.success() {
+        return Err("codex login 未成功".into());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn codex_login_cancel(state: tauri::State<'_, LoginState>) {
+    if let Ok(guard) = state.0.lock() {
+        if let Some(handle) = guard.as_ref() {
+            handle.cancelled.store(true, Ordering::SeqCst);
+            if let Ok(mut c) = handle.child.lock() {
+                let _ = c.kill();
+            }
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -189,6 +235,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(EngineState::default())
         .manage(SetupState::default())
+        .manage(LoginState::default())
         .setup(|app| {
             let st = app.state::<SetupState>().0.clone();
             let st_py = st.clone();
@@ -222,6 +269,7 @@ pub fn run() {
             cancel_task,
             check_engine,
             codex_login,
+            codex_login_cancel,
             list_skills,
             install_skills,
             check_pyenv,

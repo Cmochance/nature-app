@@ -67,3 +67,7 @@ export interface DoctorReport {
   pyenv: PyEnvStatus;
   tools: ToolCheck[];
 }
+export type LoginEvent =
+  | { type: "url"; data: string }
+  | { type: "message"; data: string }
+  | { type: "done"; data: { ok: boolean; error?: string | null } };
