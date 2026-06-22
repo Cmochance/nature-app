@@ -11,7 +11,10 @@
 #   CODEX_VERSION=rust-v0.141.0 scripts/fetch-codex.sh x86_64-unknown-linux-musl
 set -euo pipefail
 
-CODEX_VERSION="${CODEX_VERSION:-rust-v0.141.0}"
+# 项目根目录(用于读取 .codex-version)
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# codex 版本:单一来源 = 根目录 .codex-version;env 变量可覆盖
+CODEX_VERSION="${CODEX_VERSION:-$(cat "$ROOT/.codex-version" 2>/dev/null | tr -d '[:space:]')}"
 REPO="openai/codex"
 
 # 目标 triple:参数优先,否则取宿主机 rustc host
@@ -24,7 +27,6 @@ if [ -z "$TRIPLE" ]; then
   exit 1
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/src-tauri/binaries"
 mkdir -p "$OUT_DIR"
 
@@ -49,13 +51,14 @@ trap 'rm -rf "$TMP"' EXIT
 curl -fSL "$URL" -o "$TMP/codex.tar.gz"
 tar -xzf "$TMP/codex.tar.gz" -C "$TMP"
 
-# 解压后二进制名为 codex / codex.exe
+# 解压后二进制名为 codex / codex.exe;严格判定标准名,缺失则明确报错(T5)
 BIN="$TMP/codex"; [ -f "$TMP/codex.exe" ] && BIN="$TMP/codex.exe"
 if [ ! -f "$BIN" ]; then
-  # 兜底:取解出的首个可执行文件
-  BIN="$(find "$TMP" -maxdepth 2 -type f -name 'codex*' ! -name '*.tar.gz' | head -1)"
+  echo "解压后未找到标准命名的 codex 二进制(预期 codex 或 codex.exe)" >&2
+  echo "解压内容:" >&2
+  find "$TMP" -maxdepth 2 -type f -print -quit >&2 || true
+  exit 1
 fi
-[ -n "$BIN" ] && [ -f "$BIN" ] || { echo "解压后未找到 codex 二进制" >&2; exit 1; }
 
 cp "$BIN" "$OUT"
 chmod 0755 "$OUT" 2>/dev/null || true   # Windows Git Bash 上 chmod 可能 no-op

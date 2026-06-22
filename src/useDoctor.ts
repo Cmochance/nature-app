@@ -30,6 +30,20 @@ export function useDoctor(): DoctorController {
   const loadedRef = useRef(false);
   const loadingRef = useRef(false);
   const acCheckedRef = useRef(false);
+  // T7:用 ref 做 in-flight guard,避免闭包陈旧导致并发两次 codex mcp list
+  const acCheckingRef = useRef(false);
+
+  // T7:checkAcademic 用 ref guard 防并发,useCallback([]) 稳定引用
+  // T6:定义在 refresh 之前,使 refresh 可直接引用
+  const checkAcademic = useCallback((force = false) => {
+    if ((acCheckedRef.current && !force) || acCheckingRef.current) return;
+    acCheckingRef.current = true;
+    setAcChecking(true);
+    invoke<boolean>("check_academic_search")
+      .then((v) => { setAcRegisteredState(v); acCheckedRef.current = true; })
+      .catch(() => { acCheckedRef.current = true; })
+      .finally(() => { acCheckingRef.current = false; setAcChecking(false); });
+  }, []);
 
   const refresh = useCallback(() => {
     if (loadingRef.current) return;
@@ -40,28 +54,21 @@ export function useDoctor(): DoctorController {
       invoke<SetupStatus>("get_setup_status"),
     ]).then((res) => {
       const [d, s] = res;
-      if (d.status === "fulfilled") setDoctor(d.value);
+      // T4:仅 check_doctor 成功才标记已加载;失败不锁,下次进设置 ensureLoaded 可重试
+      if (d.status === "fulfilled") { setDoctor(d.value); loadedRef.current = true; }
       if (s.status === "fulfilled") setSetup(s.value);
-      loadedRef.current = true;
+      // T6:若 MCP 已被查过,重新检测时一并刷新注册态(配合登录/重新检测)
+      if (acCheckedRef.current) checkAcademic(true);
     }).finally(() => {
       loadingRef.current = false;
       setLoading(false);
     });
-  }, []);
+  }, [checkAcademic]);
 
   const ensureLoaded = useCallback(() => {
     if (loadedRef.current || loadingRef.current) return;
     refresh();
   }, [refresh]);
-
-  const checkAcademic = useCallback((force = false) => {
-    if ((acCheckedRef.current && !force) || acChecking) return;
-    setAcChecking(true);
-    invoke<boolean>("check_academic_search")
-      .then((v) => { setAcRegisteredState(v); acCheckedRef.current = true; })
-      .catch(() => { acCheckedRef.current = true; })
-      .finally(() => setAcChecking(false));
-  }, [acChecking]);
 
   const setAcRegistered = useCallback((v: boolean) => {
     setAcRegisteredState(v);

@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src-tauri/binaries
-          key: codex-${{ runner.os }}-${{ runner.arch }}-rust-v0.141.0
+          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.codex-version') }}
       - name: Fetch codex sidecar
         run: bash scripts/fetch-codex.sh
 

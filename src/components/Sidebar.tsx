@@ -29,8 +29,8 @@ interface Props {
 const GROUP_RANK: Record<string, number> = { searchRead: 0, writePolish: 1, figData: 2, reviewResp: 3, convert: 4 };
 
 export default function Sidebar({ skills, view, recent, onView, onOpenSkill, onOpenRecent }: Props) {
-  const { t, lang, setPref: setLangPref } = useI18n();
-  const { theme, setPref: setThemePref } = useTheme();
+  const { t, lang, pref: langPref, setPref: setLangPref } = useI18n();
+  const { theme, pref: themePref, setPref: setThemePref } = useTheme();
 
   const ordered = [...skills].sort((a, b) => (GROUP_RANK[skillGroup(a.id)] ?? 9) - (GROUP_RANK[skillGroup(b.id)] ?? 9));
 
@@ -85,11 +85,15 @@ export default function Sidebar({ skills, view, recent, onView, onOpenSkill, onO
         <button className={"side-action" + (view === "settings" ? " active" : "")} onClick={() => onView("settings")}>
           <Icon name="gear" /><span>{t("common.settings")}</span>
         </button>
-        <button className="side-action" onClick={() => setThemePref(theme === "dark" ? "light" : "dark")} title={t("settings.appearance")}>
-          <Icon name={theme === "dark" ? "moon" : "sun"} /><span>{theme === "dark" ? t("settings.dark") : t("settings.light")}</span>
+        <button className="side-action" onClick={() => setThemePref(
+          themePref === "dark" ? "light" : themePref === "light" ? "system" : "dark"
+        )} title={t("settings.appearance")}>
+          <Icon name={theme === "dark" ? "moon" : "sun"} /><span>{themePref === "system" ? t("settings.system") : themePref === "dark" ? t("settings.dark") : t("settings.light")}</span>
         </button>
-        <button className="side-action" onClick={() => setLangPref(lang === "zh" ? "en" : "zh")} title={t("settings.language")}>
-          <Icon name="globe" /><span>{lang === "zh" ? "中文" : "English"}</span>
+        <button className="side-action" onClick={() => setLangPref(
+          langPref === "zh" ? "en" : langPref === "en" ? "system" : "zh"
+        )} title={t("settings.language")}>
+          <Icon name="globe" /><span>{langPref === "system" ? t("settings.system") : langPref === "zh" ? "中文" : "English"}</span>
         </button>
       </div>
     </aside>
