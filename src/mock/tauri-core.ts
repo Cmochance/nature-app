@@ -242,6 +242,7 @@ export async function invoke<T = unknown>(
             reasoning_output_tokens: 420,
           },
           artifactCount: 1,
+          canRetry: true,
         });
       })();
 

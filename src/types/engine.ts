@@ -10,6 +10,8 @@ export interface TaskSpec {
   model?: string | null;
   needsNetwork?: boolean;
   stdinContext?: string | null;
+  /** 使用兼容旧版解析策略(对应 Codex < 0.145 输出格式)。 */
+  useLegacyParser?: boolean;
 }
 
 export interface Usage {
@@ -17,6 +19,13 @@ export interface Usage {
   cached_input_tokens: number;
   output_tokens: number;
   reasoning_output_tokens: number;
+}
+
+/** 轻量语义版本号。 */
+export interface SemVer {
+  major: number;
+  minor: number;
+  patch: number;
 }
 
 // DomainEvent:Rust #[serde(tag="kind", rename_all="camelCase")]
@@ -40,11 +49,17 @@ export type DomainEvent =
       threadId?: string | null;
       usage: Usage;
       artifactCount: number;
+      /** 错误是否可自动重试(网络超时/API限流等)。 */
+      canRetry: boolean;
     };
 
 export interface EngineStatus {
   bin: string;
   version?: string | null;
+  /** 解析后的语义版本号。 */
+  semver?: SemVer | null;
+  /** 是否需要使用兼容旧版解析策略。 */
+  needsLegacyParsing: boolean;
   loggedIn: boolean;
 }
 
@@ -53,6 +68,10 @@ export interface PyEnvStatus {
   ready: boolean;
   venv: string;
   python?: string | null;
+  /** 在 uv venv 中能否导入 matplotlib。 */
+  matplotlib_ok: boolean;
+  /** 在 uv venv 中能否导入 seaborn。 */
+  seaborn_ok: boolean;
 }
 
 export interface ToolCheck {
@@ -67,6 +86,7 @@ export interface DoctorReport {
   pyenv: PyEnvStatus;
   tools: ToolCheck[];
 }
+
 export type LoginEvent =
   | { type: "url"; data: string }
   | { type: "message"; data: string }

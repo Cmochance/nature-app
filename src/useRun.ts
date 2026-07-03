@@ -67,6 +67,7 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
   const [plotParams, setPlotParams] = useState<PlotParams | null>(null);
 
   const taskIdRef = useRef<string | null>(null);
+  const traceIdRef = useRef<string | null>(null);
   const gotResultRef = useRef(false);
   const optsRef = useRef(opts);
   optsRef.current = opts;
@@ -96,14 +97,42 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
       setNonce((n) => n + 1);
       setRunning(true);
       taskIdRef.current = null;
+      traceIdRef.current = null;
       gotResultRef.current = false;
+
+      // M0.5: 创建审计追踪
+      const sandboxTier = danger ? "dangerFullAccess" : "workspaceWrite";
+      try {
+        const meta = await invoke<any>("create_trace", { instruction, workdir: ctx.workdir, sandbox_tier: sandboxTier });
+        traceIdRef.current = meta.traceId;
+        // M0.5: 更新 skill info
+        if (ctx.skill) {
+          await invoke("update_trace_metadata", {
+            traceId: meta.traceId,
+            updates: { skillId: ctx.skill.id, skillName: ctx.skill.name },
+          }).catch(() => {});
+        }
+      } catch { /* trace creation is best-effort */ }
 
       const push = (it: RunItem) => setItems((prev) => [...prev, it]);
       const channel = new Channel<DomainEvent>();
       channel.onmessage = (ev) => {
+        // M0.5: 写审计追踪(event 作为原始 JSON 追加到 events.jsonl)
+        if (traceIdRef.current && ev.kind !== "finished") {
+          const json = JSON.stringify(ev);
+          invoke("append_trace_event", { traceId: traceIdRef.current, eventJson: json }).catch(() => {});
+        }
+
         switch (ev.kind) {
           case "started":
             taskIdRef.current = ev.taskId;
+            // M0.5: 更新 trace 的 task_id
+            if (traceIdRef.current) {
+              invoke("update_trace_metadata", {
+                traceId: traceIdRef.current,
+                updates: { taskId: ev.taskId },
+              }).catch(() => {});
+            }
             push({ k: "command", text: "codex " + ev.argv.join(" "), status: "ok" });
             break;
           case "reasoning":
@@ -145,13 +174,26 @@ export function useRun(opts: { dangerSandbox: boolean; lang: Lang; t: TFunc }): 
             break;
           }
           case "finished":
+            // M0.5: 最终化 metadata
+            if (traceIdRef.current) {
+              invoke("update_trace_metadata", {
+                traceId: traceIdRef.current,
+                updates: {
+                  outcome: ev.outcome,
+                  exitCode: ev.exitCode,
+                  artifactCount: ev.artifactCount,
+                  canRetry: ev.canRetry,
+                },
+              }).catch(() => {});
+            }
             if (ev.outcome === "cancelled") {
               push({ k: "note", text: t("run.cancelled") });
             } else if (ev.outcome === "success" && ev.artifactCount === 0 && !gotResultRef.current) {
               push({ k: "note", text: t("run.emptyWarn"), cls: "warn" });
             } else {
               const exit = ev.exitCode != null ? ` · ${t("run.exit")}=${ev.exitCode}` : "";
-              push({ k: "note", text: `${t("run.finished")} · ${ev.outcome}${exit}`, cls: ev.outcome === "success" ? undefined : "err" });
+              const retryHint = ev.canRetry ? ` · [${t("run.retry", { _default: "Retry" })}]` : "";
+              push({ k: "note", text: `${t("run.finished")} · ${ev.outcome}${exit}${retryHint}`, cls: ev.outcome === "success" ? undefined : "err" });
             }
             setRunning(false);
             // figure 任务成功 → 尝试载入 codex 导出的绘图参数(供图表微调,无则保持 null,UI 用 demo 兜底)

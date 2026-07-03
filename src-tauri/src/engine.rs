@@ -23,6 +23,60 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use uuid::Uuid;
 
+/// 轻量语义版本号(仅存 major.minor.patch,用于兼容性判断)。
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SemVer {
+    pub major: u64,
+    pub minor: u64,
+    pub patch: u64,
+}
+
+impl std::fmt::Display for SemVer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+/// 解析 codex 的版本字符串为 SemVer(如 "codex 0.142.0-alpha.6" → 0.142.0)。
+/// 失败时返回全零表示未知。
+pub fn parse_codex_version(raw: &str) -> SemVer {
+    // 找形如 X.Y.Z 的模式(第一个包含两个点号的词段)
+    for token in raw.split_whitespace() {
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() >= 3 {
+            if let (Ok(maj), Ok(min), Ok(pat)) = (
+                parts[0].parse::<u64>(),
+                parts[1].parse::<u64>(),
+                parts[2].parse::<u64>(),
+            ) {
+                return SemVer {
+                    major: maj,
+                    minor: min,
+                    patch: pat,
+                };
+            }
+        }
+        // 也兼容 X.Y 格式
+        if parts.len() == 2 {
+            if let (Ok(maj), Ok(min)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
+                return SemVer {
+                    major: maj,
+                    minor: min,
+                    patch: 0,
+                };
+            }
+        }
+    }
+    SemVer::default()
+}
+
+/// 判断是否需要使用兼容旧版解析策略。
+/// Codex < 0.145 可能在 item.started/completed 之间不携带完整 payload，
+/// 需要更多依赖 turn.completed 来聚合信息。
+pub fn needs_legacy_parsing(ver: &SemVer) -> bool {
+    ver.major == 0 && ver.minor < 145
+}
+
 /// 单个任务的句柄:子进程 + 取消标志。
 pub struct TaskHandle {
     pub child: Mutex<Child>,
@@ -53,6 +107,10 @@ pub struct TaskSpec {
     /// 注入 stdin 的上下文(SKILL.md 全文 / 文件清单 / 历史)。写完即关 stdin。
     #[serde(default)]
     pub stdin_context: Option<String>,
+    /// 使用兼容旧版解析策略(对应 Codex < 0.145 输出格式)。
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub use_legacy_parser: bool,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -144,6 +202,8 @@ pub enum DomainEvent {
         thread_id: Option<String>,
         usage: Usage,
         artifact_count: usize,
+        /// 错误可自动重试(如网络超时),前端据此显示「重试」按钮。
+        can_retry: bool,
     },
 }
 
@@ -152,7 +212,12 @@ pub enum DomainEvent {
 #[serde(rename_all = "camelCase")]
 pub struct EngineStatus {
     pub bin: String,
+    /// 原始版本字符串(如 "codex 0.142.0-alpha.6")。
     pub version: Option<String>,
+    /// 解析后的语义版本号。
+    pub semver: Option<SemVer>,
+    /// 是否需要使用兼容旧版解析策略。
+    pub needs_legacy_parsing: bool,
     pub logged_in: bool,
 }
 
@@ -443,9 +508,12 @@ pub fn run_task(
     let workdir = spec.workdir.clone();
     let task_dir_cleanup = task_dir.clone();
 
-    // 无活动看门狗:进程仍存活且长时间无新事件才 kill(用 try_wait 判活,避免误杀正在
-    // 收尾或正常长跑的任务);阈值给足。
+    // 活动跟踪(用于看门狗空闲计时)
     let last_activity = Arc::new(Mutex::new(Instant::now()));
+
+    // 无活动看门狗:进程仍存活且长时间无新事件才 kill。采用两阶段策略:
+    // 第一阶段(空闲 4min)发 Progress 警告让用户知道还在等;第二阶段(空闲 8min)才真正终止。
+    // 用 try_wait 判活,避免误杀正在收尾或正常长跑的任务。
     {
         let wd_handle = handle.clone();
         let wd_activity = last_activity.clone();
@@ -453,7 +521,8 @@ pub fn run_task(
         let wd_id = task_id.clone();
         let wd_ch = channel.clone();
         std::thread::spawn(move || {
-            const IDLE_LIMIT_SECS: u64 = 600;
+            const WARN_LIMIT_SECS: u64 = 240; // 4 分钟 → 警告
+            const KILL_LIMIT_SECS: u64 = 480; // 8 分钟 → 终止
             loop {
                 std::thread::sleep(Duration::from_secs(15));
                 if !wd_tasks.contains_key(&wd_id) {
@@ -471,12 +540,20 @@ pub fn run_task(
                     .lock()
                     .map(|t| t.elapsed().as_secs())
                     .unwrap_or(0);
-                if idle > IDLE_LIMIT_SECS {
+                if idle > WARN_LIMIT_SECS && idle <= KILL_LIMIT_SECS {
+                    // 只发一次警告
+                    if idle < WARN_LIMIT_SECS + 15 {
+                        let _ = wd_ch.send(DomainEvent::Progress {
+                            text: format!("⏳ 运行中,请稍候...已等待 {} 秒", idle),
+                        });
+                    }
+                }
+                if idle > KILL_LIMIT_SECS {
                     wd_handle.cancelled.store(true, Ordering::SeqCst);
                     wd_ch
                         .send(DomainEvent::EngineError {
                             class: "timeout".into(),
-                            message: format!("超过 {IDLE_LIMIT_SECS}s 无新事件,已终止任务"),
+                            message: format!("超过 {KILL_LIMIT_SECS}s 无新事件,已终止任务。可在设置页检查环境后重试。"),
                         })
                         .ok();
                     if let Ok(mut c) = wd_handle.child.lock() {
@@ -568,12 +645,27 @@ pub fn run_task(
         } else {
             "failure"
         };
+
+        // 判断错误是否可重试
+        let can_retry = if outcome == "failure" && !cancelled {
+            // 在 finished 之前,stderr 已经被 classify 过了,但这里没有 class。
+            // 所以我们用另一个标志位:如果 stderr 包含 network/timeout 关键词则标记为可重试
+            let tail = stderr_buf
+                .lock()
+                .map(|b| b.iter().cloned().collect::<Vec<_>>().join("\n"))
+                .unwrap_or_default();
+            is_retryable_error(&classify_stderr(&tail))
+        } else {
+            false
+        };
+
         ch.send(DomainEvent::Finished {
             outcome: outcome.into(),
             exit_code,
             thread_id: last_thread_id.clone(),
             usage: total_usage.clone(),
             artifact_count: emitted_artifacts.len(),
+            can_retry,
         })
         .ok();
 
@@ -598,11 +690,26 @@ fn classify_stderr(s: &str) -> String {
         || l.contains("network")
         || l.contains("dns error")
         || l.contains("sandbox")
+        || l.contains("503")  // service unavailable → rate limit / backend down
+        || l.contains("timeout")
+        || l.contains("deadline exceeded")
+        || l.contains("rate limit")
+        || l.contains("too many requests")
     {
         "networkBlocked".into()
+    } else if l.contains("parse error")
+        || l.contains("invalid json")
+        || l.contains("schema mismatch")
+    {
+        "jsonParseError".into()
     } else {
         "engineError".into()
     }
+}
+
+/// 判断错误是否可重试(网络超时、API 限流等)。
+pub fn is_retryable_error(class: &str) -> bool {
+    matches!(class, "networkBlocked" | "timeout")
 }
 
 /// 一行 JSONL → 0..N 个 DomainEvent。容错:解析失败/未知类型降级为 Raw。
@@ -819,19 +926,24 @@ pub fn cancel_task(state: &EngineState, task_id: &str) {
 /// 引擎自检:codex 版本 + 登录态。
 pub fn check_engine() -> EngineStatus {
     let bin = resolve_codex_bin();
-    let version = codex_command()
+    let raw_version = codex_command()
         .arg("--version")
         .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
 
+    let semver = raw_version.as_deref().map(parse_codex_version);
+    let needs_legacy = matches!(semver.as_ref(), Some(v) if needs_legacy_parsing(v));
+
     // 登录态:隔离 CODEX_HOME 下的 auth.json(与本地 ~/.codex 互不影响)
     let logged_in = codex_home().join("auth.json").exists();
 
     EngineStatus {
         bin,
-        version,
+        version: raw_version,
+        semver,
+        needs_legacy_parsing: needs_legacy,
         logged_in,
     }
 }
@@ -848,6 +960,7 @@ mod tests {
             model: None,
             needs_network: false,
             stdin_context: None,
+            use_legacy_parser: false,
         }
     }
 

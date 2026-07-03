@@ -32,6 +32,10 @@ pub struct PyEnvStatus {
     pub ready: bool,
     pub venv: String,
     pub python: Option<String>,
+    /// 在 uv venv 中能否导入 matplotlib(用于 figure skill)。
+    pub matplotlib_ok: bool,
+    /// 在 uv venv 中能否导入 seaborn (用于绘图辅助)。
+    pub seaborn_ok: bool,
 }
 
 pub fn pyenv_dir() -> PathBuf {
@@ -97,6 +101,25 @@ pub fn venv_bin_if_ready() -> Option<String> {
     }
 }
 
+/// 在 uv venv 中检测指定 Python 包能否正常导入(仅 stdout=0 即判定成功)。
+pub fn python_import_ok(pkg: &str) -> bool {
+    let out = Command::new(venv_python())
+        .args(["-c", &format!("import {}", pkg)])
+        .output()
+        .ok();
+    matches!(out, Some(o) if o.status.success())
+}
+
+/// 检测 matplotlib 是否可导入(用于 figure skill)。
+pub fn has_matplotlib() -> bool {
+    python_import_ok("matplotlib") || python_import_ok("matplotlib.pyplot")
+}
+
+/// 检测 seaborn 是否可导入(用于绘图辅助)。
+pub fn has_seaborn() -> bool {
+    python_import_ok("seaborn")
+}
+
 pub fn status() -> PyEnvStatus {
     PyEnvStatus {
         uv: resolve_uv(),
@@ -105,6 +128,8 @@ pub fn status() -> PyEnvStatus {
         python: venv_python()
             .exists()
             .then(|| venv_python().to_string_lossy().to_string()),
+        matplotlib_ok: has_matplotlib(),
+        seaborn_ok: has_seaborn(),
     }
 }
 
