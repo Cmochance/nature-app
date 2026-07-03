@@ -13,6 +13,7 @@ import TaskConfig from "./components/TaskConfig";
 import RunView from "./components/RunView";
 import Settings from "./components/Settings";
 import ChartEditor from "./components/ChartEditor";
+import TraceView from "./components/TraceView";
 import "./styles.css";
 
 // 图表微调的演示数据:figure 任务未导出 plot_spec/plot_data 时的兜底。
@@ -144,6 +145,8 @@ function Shell() {
           <Settings doctor={doctor} dangerSandbox={dangerSandbox} onDangerChange={setDangerSandbox} defaultNetwork={defaultNetwork} onNetworkChange={setDefaultNetwork} />
         </section>
       )}
+
+      {view === "traces" && <TraceView />}
     </div>
   );
 }

@@ -208,6 +208,8 @@ export const MOCK_SKILLS: SkillDescriptor[] = [
 export const MOCK_ENGINE: EngineStatus = {
   bin: "/usr/local/bin/codex",
   version: "codex 1.2.0 (mock)",
+  semver: { major: 1, minor: 2, patch: 0 },
+  needsLegacyParsing: false,
   loggedIn: true,
 };
 
@@ -218,6 +220,8 @@ export const MOCK_DOCTOR: DoctorReport = {
     ready: true,
     venv: "/Users/mock/.codex/skills-venv",
     python: "/Users/mock/.codex/skills-venv/bin/python",
+    matplotlib_ok: true,
+    seaborn_ok: true,
   },
   tools: [
     { name: "codex", ok: true, path: "/usr/local/bin/codex" },

@@ -5,7 +5,7 @@ import { useTheme } from "../theme";
 import { skillName, skillGroup } from "../skillsMeta";
 import { Icon } from "../icons";
 
-export type ViewName = "home" | "newtask" | "run" | "settings";
+export type ViewName = "home" | "newtask" | "run" | "settings" | "traces";
 
 export interface RecentItem {
   id: string;
@@ -82,6 +82,9 @@ export default function Sidebar({ skills, view, recent, onView, onOpenSkill, onO
       </nav>
 
       <div className="side-foot">
+        <button className={"side-action" + (view === "traces" ? " active" : "")} onClick={() => onView("traces")}>
+          <Icon name="clock" /><span>{lang === "zh" ? "执行日志" : "Trace Logs"}</span>
+        </button>
         <button className={"side-action" + (view === "settings" ? " active" : "")} onClick={() => onView("settings")}>
           <Icon name="gear" /><span>{t("common.settings")}</span>
         </button>
